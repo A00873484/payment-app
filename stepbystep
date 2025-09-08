@@ -1,0 +1,1451 @@
+// ===========================
+// package.json
+// ===========================
+{
+  "name": "order-payment-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "14.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "validator": "^13.11.0",
+    "jose": "^5.1.0",
+    "googleapis": "^128.0.0",
+    "nodemailer": "^6.9.0",
+    "axios": "^1.6.0",
+    "tailwindcss": "^3.3.0",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.31"
+  },
+  "devDependencies": {
+    "eslint": "^8.0.0",
+    "eslint-config-next": "14.0.0"
+  }
+}
+
+// ===========================
+// tailwind.config.js
+// ===========================
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/components/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+  ],
+  theme: {
+    extend: {
+      backgroundImage: {
+        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+        'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
+      },
+    },
+  },
+  plugins: [],
+}
+
+// ===========================
+// next.config.js
+// ===========================
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  env: {
+    GOOGLE_SHEETS_API_KEY: process.env.GOOGLE_SHEETS_API_KEY,
+    SPREADSHEET_ID: process.env.SPREADSHEET_ID,
+    ALPHAPAY_SECRET_KEY: process.env.ALPHAPAY_SECRET_KEY,
+    JWT_SECRET: process.env.JWT_SECRET,
+    EMAIL_SERVICE_API_KEY: process.env.EMAIL_SERVICE_API_KEY,
+  },
+}
+
+module.exports = nextConfig
+
+// ===========================
+// .env.local (template)
+// ===========================
+GOOGLE_SHEETS_API_KEY=your_google_sheets_api_key
+SPREADSHEET_ID=your_spreadsheet_id
+ALPHAPAY_SECRET_KEY=your_alphapay_secret_key
+ALPHAPAY_PUBLIC_KEY=your_alphapay_public_key
+JWT_SECRET=your_jwt_secret_key
+EMAIL_SERVICE_API_KEY=your_email_service_api_key
+EMAIL_SERVICE_ENDPOINT=your_email_service_endpoint
+
+// ===========================
+// src/lib/config.js
+// ===========================
+export const config = {
+  googleSheets: {
+    apiKey: process.env.GOOGLE_SHEETS_API_KEY,
+    spreadsheetId: process.env.SPREADSHEET_ID,
+  },
+  alphaPay: {
+    publicKey: process.env.NEXT_PUBLIC_ALPHAPAY_PUBLIC_KEY,
+    secretKey: process.env.ALPHAPAY_SECRET_KEY,
+  },
+  jwt: {
+    secret: process.env.JWT_SECRET,
+  },
+  email: {
+    apiKey: process.env.EMAIL_SERVICE_API_KEY,
+    endpoint: process.env.EMAIL_SERVICE_ENDPOINT,
+  },
+};
+
+// ===========================
+// src/lib/validators.js
+// ===========================
+import validator from 'validator';
+
+export class InputValidator {
+  static validateEmail(email) {
+    if (!email || !validator.isEmail(email)) {
+      return 'Please enter a valid email address';
+    }
+    return null;
+  }
+
+  static validateCardNumber(cardNumber) {
+    const sanitized = cardNumber.replace(/\s/g, '');
+    if (!validator.isCreditCard(sanitized)) {
+      return 'Please enter a valid card number';
+    }
+    return null;
+  }
+
+  static validateExpiryDate(expiry) {
+    const sanitized = validator.escape(expiry);
+    if (!/^(0[1-9]|1[0-2])\/([0-9]{2})$/.test(sanitized)) {
+      return 'Please enter expiry date in MM/YY format';
+    }
+    
+    // Check if date is in the future
+    const [month, year] = expiry.split('/');
+    const expiryDate = new Date(2000 + parseInt(year), parseInt(month) - 1);
+    const now = new Date();
+    
+    if (expiryDate < now) {
+      return 'Card has expired';
+    }
+    
+    return null;
+  }
+
+  static validateCVV(cvv) {
+    const sanitized = validator.escape(cvv);
+    if (!/^[0-9]{3,4}$/.test(sanitized)) {
+      return 'Please enter a valid CVV (3-4 digits)';
+    }
+    return null;
+  }
+
+  static validateName(name) {
+    if (!name || name.trim().length < 2 || name.trim().length > 50) {
+      return 'Name must be between 2 and 50 characters';
+    }
+    return null;
+  }
+
+  static sanitizeInput(input) {
+    return validator.escape(input.toString().trim());
+  }
+}
+
+// ===========================
+// src/lib/jwt.js
+// ===========================
+import { SignJWT, jwtVerify } from 'jose';
+import { config } from './config.js';
+
+const secret = new TextEncoder().encode(config.jwt.secret);
+
+export async function signToken(payload) {
+  return await new SignJWT(payload)
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('24h')
+    .sign(secret);
+}
+
+export async function verifyToken(token) {
+  try {
+    const { payload } = await jwtVerify(token, secret);
+    return { valid: true, payload };
+  } catch (error) {
+    return { valid: false, error: error.message };
+  }
+}
+
+// ===========================
+// src/lib/sheets.js
+// ===========================
+import { google } from 'googleapis';
+import { config } from './config.js';
+
+const sheets = google.sheets('v4');
+
+export class SheetsManager {
+  static async fetchOrderDetails(orderId) {
+    try {
+      // For demo purposes, return mock data
+      // In production, replace with actual Google Sheets API call
+      const mockOrderData = {
+        orderId: orderId,
+        customerName: 'John Doe',
+        customerEmail: 'john@example.com',
+        items: [
+          { name: 'Premium Widget', price: 29.99, quantity: 2 },
+          { name: 'Express Shipping', price: 9.99, quantity: 1 }
+        ],
+        total: 69.97,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      };
+
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      return mockOrderData;
+
+      // Production implementation:
+      /*
+      const response = await sheets.spreadsheets.values.get({
+        auth: config.googleSheets.apiKey,
+        spreadsheetId: config.googleSheets.spreadsheetId,
+        range: 'Orders!A:H',
+      });
+
+      const rows = response.data.values;
+      const orderRow = rows.find(row => row[0] === orderId);
+      
+      if (!orderRow) {
+        throw new Error('Order not found');
+      }
+
+      return {
+        orderId: orderRow[0],
+        customerName: orderRow[1],
+        customerEmail: orderRow[2],
+        items: JSON.parse(orderRow[3]),
+        total: parseFloat(orderRow[4]),
+        status: orderRow[5],
+        createdAt: orderRow[6]
+      };
+      */
+    } catch (error) {
+      console.error('Failed to fetch order details:', error);
+      throw new Error('Unable to retrieve order information');
+    }
+  }
+
+  static async updateOrderStatus(orderId, status, paymentId = null) {
+    try {
+      console.log(`Updating order ${orderId} status to: ${status}`);
+      
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      return {
+        orderId,
+        status,
+        paymentId,
+        updatedAt: new Date().toISOString()
+      };
+
+      // Production implementation:
+      /*
+      await sheets.spreadsheets.values.update({
+        auth: config.googleSheets.apiKey,
+        spreadsheetId: config.googleSheets.spreadsheetId,
+        range: `Orders!F${orderRowIndex}:G${orderRowIndex}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [[status, paymentId || '']]
+        }
+      });
+      */
+    } catch (error) {
+      console.error('Failed to update order status:', error);
+      throw error;
+    }
+  }
+}
+
+// ===========================
+// src/lib/alphapay.js
+// ===========================
+import axios from 'axios';
+import { config } from './config.js';
+
+export class AlphaPayProcessor {
+  static async processPayment(paymentData) {
+    try {
+      console.log('Processing payment with AlphaPay:', {
+        ...paymentData,
+        cardNumber: '**** **** **** ' + paymentData.cardNumber.slice(-4),
+        cvv: '***'
+      });
+      
+      // Simulate processing time
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Simulate successful payment
+      const paymentResult = {
+        success: true,
+        paymentId: `alphapay_${Date.now()}`,
+        transactionId: `txn_${Math.random().toString(36).substr(2, 9)}`,
+        amount: paymentData.amount,
+        currency: 'USD',
+        status: 'completed',
+        processedAt: new Date().toISOString()
+      };
+
+      return paymentResult;
+
+      // Production implementation:
+      /*
+      const response = await axios.post('https://api.alphapay.com/v1/charges', {
+        amount: Math.round(paymentData.amount * 100), // Convert to cents
+        currency: paymentData.currency,
+        source: {
+          number: paymentData.cardNumber,
+          exp_month: paymentData.expiry.split('/')[0],
+          exp_year: '20' + paymentData.expiry.split('/')[1],
+          cvc: paymentData.cvv,
+          name: paymentData.cardName
+        },
+        description: `Order ${paymentData.orderId}`,
+        metadata: {
+          orderId: paymentData.orderId,
+          email: paymentData.email
+        }
+      }, {
+        headers: {
+          'Authorization': `Bearer ${config.alphaPay.secretKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      return response.data;
+      */
+    } catch (error) {
+      console.error('Payment processing failed:', error);
+      throw new Error('Payment processing failed. Please try again.');
+    }
+  }
+
+  static formatCardNumber(cardNumber) {
+    return cardNumber.replace(/\D/g, '').replace(/(\d{4})(?=\d)/g, '$1 ');
+  }
+
+  static formatExpiryDate(expiry) {
+    return expiry.replace(/\D/g, '').replace(/(\d{2})(?=\d)/, '$1/');
+  }
+}
+
+// ===========================
+// src/lib/email.js
+// ===========================
+import nodemailer from 'nodemailer';
+import { config } from './config.js';
+
+export class EmailService {
+  static async sendConfirmationEmail(orderData, paymentResult) {
+    try {
+      // Simulate email sending
+      const emailData = {
+        to: orderData.customerEmail,
+        subject: `Payment Confirmed - Order #${orderData.orderId}`,
+        html: this.generateConfirmationHTML(orderData, paymentResult)
+      };
+
+      console.log('Sending confirmation email:', emailData);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      return { success: true, messageId: `msg_${Date.now()}` };
+
+      // Production implementation with Nodemailer:
+      /*
+      const transporter = nodemailer.createTransporter({
+        service: 'gmail', // or your email service
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS
+        }
+      });
+
+      const mailOptions = {
+        from: process.env.EMAIL_FROM,
+        to: orderData.customerEmail,
+        subject: `Payment Confirmed - Order #${orderData.orderId}`,
+        html: this.generateConfirmationHTML(orderData, paymentResult)
+      };
+
+      const result = await transporter.sendMail(mailOptions);
+      return { success: true, messageId: result.messageId };
+      */
+    } catch (error) {
+      console.error('Failed to send confirmation email:', error);
+      throw error;
+    }
+  }
+
+  static generateConfirmationHTML(orderData, paymentResult) {
+    const itemsHTML = orderData.items.map(item => `
+      <tr>
+        <td style="padding: 10px; border-bottom: 1px solid #eee;">
+          ${item.name}${item.quantity > 1 ? ` x${item.quantity}` : ''}
+        </td>
+        <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">
+          $${(item.price * item.quantity).toFixed(2)}
+        </td>
+      </tr>
+    `).join('');
+
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #4facfe;">✅ Payment Confirmed!</h1>
+        <p>Dear ${orderData.customerName},</p>
+        <p>Thank you for your payment. Your order has been confirmed and is being processed.</p>
+        
+        <h3>Order Details:</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+          ${itemsHTML}
+          <tr style="font-weight: bold; background: #f8f9fa;">
+            <td style="padding: 15px;">Total</td>
+            <td style="padding: 15px; text-align: right;">$${orderData.total.toFixed(2)}</td>
+          </tr>
+        </table>
+        
+        <h3>Payment Information:</h3>
+        <ul>
+          <li><strong>Payment ID:</strong> ${paymentResult.paymentId}</li>
+          <li><strong>Order ID:</strong> ${orderData.orderId}</li>
+          <li><strong>Amount:</strong> $${paymentResult.amount.toFixed(2)}</li>
+        </ul>
+        
+        <p><strong>📦 Next Steps:</strong><br>
+        Your order will be ready for pickup in 2-3 business days. We will send you a notification when it's ready.</p>
+        
+        <p>Thank you for your business!</p>
+      </div>
+    `;
+  }
+}
+
+// ===========================
+// src/components/LoadingSpinner.js
+// ===========================
+export default function LoadingSpinner({ message = "Loading..." }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+      <p className="text-gray-600">{message}</p>
+    </div>
+  );
+}
+
+// ===========================
+// src/components/ErrorMessage.js
+// ===========================
+export default function ErrorMessage({ message, onRetry }) {
+  return (
+    <div className="bg-red-50 border-l-4 border-red-400 p-6 rounded-lg">
+      <div className="flex items-center">
+        <div className="text-red-400 text-2xl mr-3">⚠️</div>
+        <div>
+          <h3 className="text-red-800 font-semibold">Error</h3>
+          <p className="text-red-700 mt-1">{message}</p>
+        </div>
+      </div>
+      {onRetry && (
+        <button
+          onClick={onRetry}
+          className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+        >
+          Try Again
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ===========================
+// src/components/OrderDetails.js
+// ===========================
+export default function OrderDetails({ orderData }) {
+  return (
+    <div className="bg-gray-50 rounded-xl p-6 mb-8">
+      <h3 className="text-xl font-semibold mb-4 flex items-center">
+        📋 Order Details
+      </h3>
+      
+      <div className="space-y-2 mb-6">
+        <p><span className="font-medium">Order ID:</span> {orderData.orderId}</p>
+        <p><span className="font-medium">Customer:</span> {orderData.customerName}</p>
+      </div>
+
+      <div className="space-y-3">
+        {orderData.items.map((item, index) => (
+          <div key={index} className="flex justify-between items-center py-3 border-b border-gray-200 last:border-b-0">
+            <span className="font-medium">
+              {item.name}{item.quantity > 1 ? ` x${item.quantity}` : ''}
+            </span>
+            <span className="text-gray-600">
+              ${(item.price * item.quantity).toFixed(2)}
+            </span>
+          </div>
+        ))}
+        <div className="flex justify-between items-center py-4 font-bold text-lg bg-white rounded-lg px-4 mt-4">
+          <span>Total</span>
+          <span>${orderData.total.toFixed(2)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===========================
+// src/components/PaymentForm.js
+// ===========================
+import { useState } from 'react';
+import { InputValidator } from '../lib/validators';
+import { AlphaPayProcessor } from '../lib/alphapay';
+
+export default function PaymentForm({ orderData, onPaymentSuccess, onPaymentError }) {
+  const [formData, setFormData] = useState({
+    email: orderData.customerEmail,
+    cardNumber: '',
+    expiry: '',
+    cvv: '',
+    cardName: orderData.customerName
+  });
+  
+  const [errors, setErrors] = useState({});
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleInputChange = (field, value) => {
+    let formattedValue = value;
+    
+    // Apply formatting
+    if (field === 'cardNumber') {
+      formattedValue = AlphaPayProcessor.formatCardNumber(value);
+    } else if (field === 'expiry') {
+      formattedValue = AlphaPayProcessor.formatExpiryDate(value);
+    } else if (field === 'cvv') {
+      formattedValue = value.replace(/\D/g, '');
+    }
+    
+    setFormData(prev => ({ ...prev, [field]: formattedValue }));
+    
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: null }));
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    newErrors.email = InputValidator.validateEmail(formData.email);
+    newErrors.cardNumber = InputValidator.validateCardNumber(formData.cardNumber);
+    newErrors.expiry = InputValidator.validateExpiryDate(formData.expiry);
+    newErrors.cvv = InputValidator.validateCVV(formData.cvv);
+    newErrors.cardName = InputValidator.validateName(formData.cardName);
+    
+    // Remove null errors
+    Object.keys(newErrors).forEach(key => {
+      if (newErrors[key] === null) delete newErrors[key];
+    });
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) return;
+    
+    setIsProcessing(true);
+    
+    try {
+      const paymentData = {
+        orderId: orderData.orderId,
+        amount: orderData.total,
+        currency: 'USD',
+        cardNumber: formData.cardNumber.replace(/\s/g, ''),
+        expiry: formData.expiry,
+        cvv: formData.cvv,
+        cardName: InputValidator.sanitizeInput(formData.cardName),
+        email: InputValidator.sanitizeInput(formData.email)
+      };
+
+      const result = await AlphaPayProcessor.processPayment(paymentData);
+      onPaymentSuccess(result);
+      
+    } catch (error) {
+      onPaymentError(error.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const InputField = ({ label, type, field, placeholder, maxLength }) => (
+    <div className="mb-6">
+      <label htmlFor={field} className="block text-sm font-medium text-gray-700 mb-2">
+        {label}
+      </label>
+      <input
+        type={type}
+        id={field}
+        value={formData[field]}
+        onChange={(e) => handleInputChange(field, e.target.value)}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:border-blue-500 transition-colors ${
+          errors[field] ? 'border-red-400' : 'border-gray-300'
+        }`}
+        required
+      />
+      {errors[field] && (
+        <p className="text-red-600 text-sm mt-1">{errors[field]}</p>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="bg-white border-2 border-gray-200 rounded-xl p-8">
+      <h3 className="text-xl font-semibold mb-6 flex items-center">
+        💳 Payment Information
+      </h3>
+      
+      <form onSubmit={handleSubmit}>
+        <InputField
+          label="Email Address"
+          type="email"
+          field="email"
+          placeholder="john@example.com"
+        />
+        
+        <InputField
+          label="Card Number"
+          type="text"
+          field="cardNumber"
+          placeholder="1234 5678 9012 3456"
+          maxLength={19}
+        />
+        
+        <div className="grid grid-cols-2 gap-4">
+          <InputField
+            label="Expiry Date"
+            type="text"
+            field="expiry"
+            placeholder="MM/YY"
+            maxLength={5}
+          />
+          
+          <InputField
+            label="CVV"
+            type="text"
+            field="cvv"
+            placeholder="123"
+            maxLength={4}
+          />
+        </div>
+        
+        <InputField
+          label="Name on Card"
+          type="text"
+          field="cardName"
+          placeholder="John Doe"
+        />
+        
+        <button
+          type="submit"
+          disabled={isProcessing}
+          className={`w-full py-4 px-6 rounded-lg font-semibold text-lg transition-all ${
+            isProcessing
+              ? 'bg-gray-400 cursor-not-allowed'
+              : 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 hover:-translate-y-0.5 shadow-lg hover:shadow-xl'
+          } text-white`}
+        >
+          {isProcessing ? (
+            <span className="flex items-center justify-center">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+              Processing Payment...
+            </span>
+          ) : (
+            `🔒 Pay $${orderData.total.toFixed(2)} Securely`
+          )}
+        </button>
+      </form>
+      
+      <div className="mt-6 p-4 bg-blue-50 rounded-lg text-center text-sm text-gray-600">
+        🛡️ Your payment is secured with 256-bit SSL encryption
+      </div>
+    </div>
+  );
+}
+
+// ===========================
+// src/components/PaymentSuccess.js
+// ===========================
+export default function PaymentSuccess({ paymentResult, orderData }) {
+  return (
+    <div className="text-center py-12">
+      <div className="text-6xl mb-6">✅</div>
+      <h2 className="text-3xl font-bold text-gray-800 mb-4">Payment Successful!</h2>
+      <p className="text-lg text-gray-600 mb-8">
+        Thank you for your payment. Your order has been confirmed.
+      </p>
+      
+      <div className="bg-gray-50 rounded-xl p-6 max-w-md mx-auto">
+        <h3 className="text-xl font-semibold mb-4">Payment Details</h3>
+        <div className="space-y-3 text-left">
+          <div className="flex justify-between">
+            <span className="font-medium">Payment ID</span>
+            <span className="text-gray-600">{paymentResult.paymentId}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="font-medium">Order ID</span>
+            <span className="text-gray-600">{orderData.orderId}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="font-medium">Amount Paid</span>
+            <span className="text-gray-600">${paymentResult.amount.toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+      
+      <div className="mt-8 p-4 bg-blue-50 rounded-lg max-w-md mx-auto">
+        <p className="text-sm text-gray-700">
+          📧 A confirmation email has been sent to {orderData.customerEmail}
+          <br />
+          📦 You will receive pickup instructions within 2-3 business days.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ===========================
+// src/pages/api/orders/[orderId].js
+// ===========================
+import { SheetsManager } from '../../../lib/sheets';
+import { verifyToken } from '../../../lib/jwt';
+
+export default async function handler(req, res) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const { orderId } = req.query;
+    const token = req.headers.authorization?.replace('Bearer ', '');
+
+    if (!token) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    const tokenValidation = await verifyToken(token);
+    if (!tokenValidation.valid) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    // Verify the token contains the correct orderId
+    if (tokenValidation.payload.orderId !== orderId) {
+      return res.status(403).json({ error: 'Token does not match order ID' });
+    }
+
+    const orderData = await SheetsManager.fetchOrderDetails(orderId);
+    res.status(200).json(orderData);
+
+  } catch (error) {
+    console.error('API Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// ===========================
+// src/pages/api/payment/process.js
+// ===========================
+import { AlphaPayProcessor } from '../../../lib/alphapay';
+import { SheetsManager } from '../../../lib/sheets';
+import { EmailService } from '../../../lib/email';
+import { verifyToken } from '../../../lib/jwt';
+import { InputValidator } from '../../../lib/validators';
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    const tokenValidation = await verifyToken(token);
+    if (!tokenValidation.valid) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    const { paymentData } = req.body;
+
+    // Validate payment data
+    const validationErrors = {};
+    validationErrors.email = InputValidator.validateEmail(paymentData.email);
+    validationErrors.cardNumber = InputValidator.validateCardNumber(paymentData.cardNumber);
+    validationErrors.expiry = InputValidator.validateExpiryDate(paymentData.expiry);
+    validationErrors.cvv = InputValidator.validateCVV(paymentData.cvv);
+    validationErrors.cardName = InputValidator.validateName(paymentData.cardName);
+
+    // Remove null errors
+    Object.keys(validationErrors).forEach(key => {
+      if (validationErrors[key] === null) delete validationErrors[key];
+    });
+
+    if (Object.keys(validationErrors).length > 0) {
+      return res.status(400).json({ error: 'Validation failed', validationErrors });
+    }
+
+    // Process payment
+    const paymentResult = await AlphaPayProcessor.processPayment(paymentData);
+
+    // Update order status
+    await SheetsManager.updateOrderStatus(
+      paymentData.orderId,
+      'paid',
+      paymentResult.paymentId
+    );
+
+    // Get order details for email
+    const orderData = await SheetsManager.fetchOrderDetails(paymentData.orderId);
+
+    // Send confirmation email
+    await EmailService.sendConfirmationEmail(orderData, paymentResult);
+
+    res.status(200).json({ success: true, paymentResult });
+
+  } catch (error) {
+    console.error('Payment API Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// ===========================
+// src/pages/payment.js
+// ===========================
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
+import Head from 'next/head';
+import LoadingSpinner from '../components/LoadingSpinner';
+import ErrorMessage from '../components/ErrorMessage';
+import OrderDetails from '../components/OrderDetails';
+import PaymentForm from '../components/PaymentForm';
+import PaymentSuccess from '../components/PaymentSuccess';
+
+export default function PaymentPage() {
+  const router = useRouter();
+  const [orderData, setOrderData] = useState(null);
+  const [paymentResult, setPaymentResult] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (router.isReady) {
+      initializePayment();
+    }
+  }, [router.isReady]);
+
+  const initializePayment = async () => {
+    try {
+      const { orderId, token } = router.query;
+
+      if (!orderId || !token) {
+        throw new Error('Missing required parameters. Please check your payment link.');
+      }
+
+      // Fetch order details
+      const response = await fetch(`/api/orders/${orderId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to load order details');
+      }
+
+      const data = await response.json();
+      setOrderData(data);
+
+    } catch (error) {
+      console.error('Payment initialization failed:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePaymentSuccess = async (result) => {
+    try {
+      const { token } = router.query;
+      
+      const response = await fetch('/api/payment/process', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          paymentData: {
+            orderId: orderData.orderId,
+            amount: orderData.total,
+            currency: 'USD',
+            ...result
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Payment processing failed');
+      }
+
+      const data = await response.json();
+      setPaymentResult(data.paymentResult);
+
+    } catch (error) {
+      console.error('Payment completion failed:', error);
+      setError(error.message);
+    }
+  };
+
+  const handlePaymentError = (errorMessage) => {
+    setError(errorMessage);
+  };
+
+  const handleRetry = () => {
+    setError(null);
+    setLoading(true);
+    initializePayment();
+  };
+
+  return (
+    <>
+      <Head>
+        <title>Order Payment - Secure Checkout</title>
+        <meta name="description" content="Complete your order payment securely" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/favicon.ico" />
+      </Head>
+
+      <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-cyan-500 py-8 px-4">
+        <div className="max-w-2xl mx-auto">
+          {/* Header */}
+          <div className="bg-white rounded-t-2xl p-8 text-center shadow-lg">
+            <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center justify-center">
+              🛒 Order Payment
+            </h1>
+            <p className="text-gray-600">Secure checkout powered by AlphaPay</p>
+          </div>
+
+          {/* Content */}
+          <div className="bg-white rounded-b-2xl shadow-lg p-8">
+            {loading && (
+              <LoadingSpinner message="Loading your order details..." />
+            )}
+
+            {error && (
+              <ErrorMessage message={error} onRetry={handleRetry} />
+            )}
+
+            {paymentResult && orderData && (
+              <PaymentSuccess 
+                paymentResult={paymentResult} 
+                orderData={orderData} 
+              />
+            )}
+
+            {!loading && !error && !paymentResult && orderData && (
+              <>
+                <OrderDetails orderData={orderData} />
+                <PaymentForm 
+                  orderData={orderData}
+                  onPaymentSuccess={handlePaymentSuccess}
+                  onPaymentError={handlePaymentError}
+                />
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ===========================
+// src/pages/_app.js
+// ===========================
+import '../styles/globals.css';
+
+export default function App({ Component, pageProps }) {
+  return <Component {...pageProps} />;
+}
+
+// ===========================
+// src/pages/_document.js
+// ===========================
+import { Html, Head, Main, NextScript } from 'next/document';
+
+export default function Document() {
+  return (
+    <Html lang="en">
+      <Head />
+      <body>
+        <Main />
+        <NextScript />
+      </body>
+    </Html>
+  );
+}
+
+// ===========================
+// src/pages/index.js
+// ===========================
+import Head from 'next/head';
+import Link from 'next/link';
+
+export default function Home() {
+  return (
+    <>
+      <Head>
+        <title>Order Payment System</title>
+        <meta name="description" content="Secure order payment processing" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/favicon.ico" />
+      </Head>
+
+      <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-cyan-500 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl p-12 text-center max-w-md w-full">
+          <div className="text-6xl mb-6">🛒</div>
+          <h1 className="text-3xl font-bold text-gray-800 mb-4">
+            Order Payment System
+          </h1>
+          <p className="text-gray-600 mb-8">
+            Secure payment processing for your orders with Google Sheets integration and AlphaPay.
+          </p>
+          
+          <div className="space-y-4">
+            <div className="bg-blue-50 rounded-lg p-4">
+              <p className="text-sm text-gray-700">
+                💡 To process a payment, you need a valid payment link with orderId and token parameters.
+              </p>
+            </div>
+            
+            <div className="text-left space-y-2 text-sm text-gray-600">
+              <p><strong>✨ Features:</strong></p>
+              <ul className="list-disc list-inside space-y-1 ml-4">
+                <li>JWT token authentication</li>
+                <li>Google Sheets integration</li>
+                <li>AlphaPay payment processing</li>
+                <li>Email confirmations</li>
+                <li>Input validation & sanitization</li>
+                <li>Responsive design</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ===========================
+// src/pages/api/generate-payment-link.js
+// ===========================
+import { signToken } from '../../lib/jwt';
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const { orderId, customerEmail } = req.body;
+
+    if (!orderId || !customerEmail) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Generate JWT token
+    const token = await signToken({
+      orderId,
+      customerEmail,
+      purpose: 'payment'
+    });
+
+    // Generate payment URL
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const paymentUrl = `${baseUrl}/payment?orderId=${orderId}&token=${token}`;
+
+    res.status(200).json({
+      success: true,
+      paymentUrl,
+      token,
+      expiresIn: '24h'
+    });
+
+  } catch (error) {
+    console.error('Payment link generation failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// ===========================
+// src/pages/api/send-payment-email.js
+// ===========================
+import { EmailService } from '../../lib/email';
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const { customerEmail, customerName, orderId, paymentUrl, orderTotal } = req.body;
+
+    if (!customerEmail || !customerName || !orderId || !paymentUrl) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const emailHTML = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="margin: 0; font-size: 28px;">🛒 Payment Required</h1>
+          <p style="margin: 10px 0 0 0; font-size: 16px;">Complete your order payment</p>
+        </div>
+        
+        <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+          <p>Dear ${customerName},</p>
+          <p>Your order <strong>#${orderId}</strong> is ready for payment.</p>
+          
+          ${orderTotal ? `<p><strong>Order Total: ${orderTotal}</strong></p>` : ''}
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${paymentUrl}" 
+               style="display: inline-block; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+              🔒 Pay Now Securely
+            </a>
+          </div>
+          
+          <p style="font-size: 14px; color: #666; text-align: center;">
+            This payment link will expire in 24 hours.<br>
+            🛡️ Your payment is secured with 256-bit SSL encryption.
+          </p>
+        </div>
+      </div>
+    `;
+
+    // In production, use your actual email service
+    console.log('Sending payment email to:', customerEmail);
+    console.log('Payment URL:', paymentUrl);
+
+    // Simulate email sending
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    res.status(200).json({
+      success: true,
+      message: 'Payment email sent successfully'
+    });
+
+  } catch (error) {
+    console.error('Payment email sending failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// ===========================
+// src/styles/globals.css
+// ===========================
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  html {
+    color-scheme: dark;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Animation utilities */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+// ===========================
+// README.md
+// ===========================
+
+# Order Payment Processing App
+
+A secure Next.js application for processing order payments with Google Sheets integration and AlphaPay payment processing.
+
+## 🚀 Features
+
+- **JWT Token Authentication**: Secure tokenized payment links
+- **Google Sheets Integration**: Order data retrieval and status updates
+- **AlphaPay Payment Processing**: Secure payment handling
+- **Email Notifications**: Automated confirmation emails
+- **Input Validation**: Comprehensive validation with Validator.js
+- **Responsive Design**: Mobile-friendly Tailwind CSS interface
+- **Real-time Form Validation**: Live validation with error messaging
+- **Security**: XSS protection and input sanitization
+
+## 🛠️ Tech Stack
+
+- **Frontend**: Next.js 14, React 18, Tailwind CSS
+- **Backend**: Next.js API Routes
+- **Authentication**: JWT (jose library)
+- **Validation**: Validator.js
+- **Payment Processing**: AlphaPay integration
+- **Email Service**: Nodemailer
+- **Google Sheets**: Google APIs
+
+## 📦 Installation
+
+1. **Clone and install dependencies**:
+   ```bash
+   git clone <repository-url>
+   cd order-payment-app
+   npm install
+   ```
+
+2. **Environment Configuration**:
+   Create a `.env.local` file with:
+   ```env
+   GOOGLE_SHEETS_API_KEY=your_google_sheets_api_key
+   SPREADSHEET_ID=your_spreadsheet_id
+   ALPHAPAY_SECRET_KEY=your_alphapay_secret_key
+   NEXT_PUBLIC_ALPHAPAY_PUBLIC_KEY=your_alphapay_public_key
+   JWT_SECRET=your_jwt_secret_key
+   EMAIL_SERVICE_API_KEY=your_email_service_api_key
+   EMAIL_SERVICE_ENDPOINT=your_email_service_endpoint
+   NEXT_PUBLIC_BASE_URL=http://localhost:3000
+   ```
+
+3. **Run the development server**:
+   ```bash
+   npm run dev
+   ```
+
+## 🔧 Usage
+
+### 1. Generate Payment Links
+
+Use the API endpoint to generate secure payment links:
+
+```javascript
+POST /api/generate-payment-link
+{
+  "orderId": "ORD-12345",
+  "customerEmail": "customer@example.com"
+}
+```
+
+### 2. Send Payment Emails
+
+Send payment notification emails:
+
+```javascript
+POST /api/send-payment-email
+{
+  "customerEmail": "customer@example.com",
+  "customerName": "John Doe",
+  "orderId": "ORD-12345",
+  "paymentUrl": "https://yourapp.com/payment?orderId=ORD-12345&token=...",
+  "orderTotal": 69.97
+}
+```
+
+### 3. Payment Processing Flow
+
+1. User receives email with "Pay Now" button
+2. Clicks link to access payment page
+3. JWT token is validated
+4. Order details are fetched from Google Sheets
+5. User completes payment form
+6. Payment is processed via AlphaPay
+7. Order status is updated in Google Sheets
+8. Confirmation email is sent
+
+## 🏗️ Project Structure
+
+```
+src/
+├── components/           # React components
+│   ├── LoadingSpinner.js
+│   ├── ErrorMessage.js
+│   ├── OrderDetails.js
+│   ├── PaymentForm.js
+│   └── PaymentSuccess.js
+├── lib/                  # Utility libraries
+│   ├── config.js        # Configuration
+│   ├── validators.js    # Input validation
+│   ├── jwt.js          # JWT handling
+│   ├── sheets.js       # Google Sheets API
+│   ├── alphapay.js     # AlphaPay integration
+│   └── email.js        # Email service
+├── pages/
+│   ├── api/            # API routes
+│   │   ├── orders/[orderId].js
+│   │   ├── payment/process.js
+│   │   ├── generate-payment-link.js
+│   │   └── send-payment-email.js
+│   ├── _app.js
+│   ├── _document.js
+│   ├── index.js
+│   └── payment.js      # Main payment page
+└── styles/
+    └── globals.css     # Global styles
+```
+
+## 🔐 Security Features
+
+- **JWT Token Validation**: Secure, time-limited payment links
+- **Input Sanitization**: XSS protection using Validator.js
+- **Server-side Validation**: Comprehensive API validation
+- **HTTPS Enforcement**: SSL/TLS encryption
+- **Rate Limiting**: (Implement as needed)
+
+## 📧 Email Integration
+
+The app supports multiple email service providers:
+- Nodemailer for SMTP services
+- SendGrid, Mailgun, or other REST APIs
+- Custom email templates with order details
+
+## 💳 Payment Flow
+
+1. **Token Generation**: JWT tokens with order information
+2. **Validation**: Server-side token verification
+3. **Order Retrieval**: Fetch order details from Google Sheets
+4. **Payment Processing**: Secure AlphaPay integration
+5. **Status Update**: Update Google Sheets with payment status
+6. **Confirmation**: Send email confirmation with pickup instructions
+
+## 🚀 Deployment
+
+### Vercel (Recommended)
+```bash
+npm run build
+vercel --prod
+```
+
+### Other Platforms
+```bash
+npm run build
+npm start
+```
+
+## 🧪 Testing
+
+Replace mock implementations in production:
+- `SheetsManager.fetchOrderDetails()` - Implement actual Google Sheets API calls
+- `AlphaPayProcessor.processPayment()` - Connect to real AlphaPay API
+- `EmailService.sendConfirmationEmail()` - Configure with your email provider
+
+## 📝 License
+
+MIT License - see LICENSE file for details
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## 📞 Support
+
+For support and questions:
+- Create an issue in the repository
+- Check the documentation
+- Review the code comments for implementation details
