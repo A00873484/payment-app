@@ -2,44 +2,42 @@ import nodemailer from 'nodemailer';
 import { config } from './config.js';
 
 export class EmailService {
-  static async sendConfirmationEmail(orderData, paymentResult) {
+
+  static async sendEmail(to, subject, htmlContent) {
     try {
-      // Simulate email sending
-      const emailData = {
-        to: orderData.customerEmail,
-        subject: `Payment Confirmed - Order #${orderData.orderId}`,
-        html: this.generateConfirmationHTML(orderData, paymentResult)
-      };
-
-      console.log('Sending confirmation email:', emailData);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      return { success: true, messageId: `msg_${Date.now()}` };
-
-      // Production implementation with Nodemailer:
-      /*
-      const transporter = nodemailer.createTransporter({
-        service: 'gmail', // or your email service
+      const transporter = nodemailer.createTransport({
+        host: process.env.EMAIL_HOST, // smtpout.secureserver.net
+        port: process.env.EMAIL_PORT, // 465
+        secure: true, // true for 465, false for 587
         auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS
+          user: process.env.EMAIL_USER, // orders@ovosky.com
+          pass: process.env.EMAIL_PASS  // your email password
         }
       });
 
       const mailOptions = {
         from: process.env.EMAIL_FROM,
-        to: orderData.customerEmail,
-        subject: `Payment Confirmed - Order #${orderData.orderId}`,
-        html: this.generateConfirmationHTML(orderData, paymentResult)
+        //replyTo: "orders@ovosky.com",
+        to,
+        subject,
+        html: htmlContent
       };
 
       const result = await transporter.sendMail(mailOptions);
       return { success: true, messageId: result.messageId };
-      */
-    } catch (error) {
-      console.error('Failed to send confirmation email:', error);
+    }
+    catch (error) {
+      console.error('Failed to send email:', error);
       throw error;
     }
+  }
+
+  static async sendConfirmationEmail(orderData, paymentResult) {
+    return this.sendEmail(
+      orderData.customerEmail,
+      `Payment Confirmed - Order #${orderData.orderId}`,
+      this.generateConfirmationHTML(orderData, paymentResult)
+    );
   }
 
   static generateConfirmationHTML(orderData, paymentResult) {

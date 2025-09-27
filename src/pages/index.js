@@ -22,7 +22,7 @@ export default function Home() {
     {
       orderId: 'ORD-2024-001',
       customerName: 'John Doe',
-      customerEmail: 'john.doe@example.com',
+      customerEmail: 'danny.engelhard@gmail.com',
       items: [
         { name: 'Premium Widget', price: 29.99, quantity: 2 },
         { name: 'Express Shipping', price: 9.99, quantity: 1 }
@@ -349,7 +349,7 @@ export default function Home() {
                   <div>
                     <h2 className="text-2xl font-bold text-gray-900 mb-4">📦 Sample Orders</h2>
                     <p className="text-gray-600 mb-6">
-                      These are sample orders you can use for testing the payment system. Click "Send Payment Email" to simulate the customer flow.
+                      These are sample orders you can use for testing the payment system. Click &quot;Send Payment Email&quot; to simulate the customer flow.
                     </p>
                   </div>
 
@@ -411,7 +411,7 @@ export default function Home() {
                   <div>
                     <h2 className="text-2xl font-bold text-gray-900 mb-4">⚡ System Features</h2>
                     <p className="text-gray-600 mb-6">
-                      Overview of the payment system's capabilities and integrations.
+                      Overview of the payment system&apos;s capabilities and integrations.
                     </p>
                   </div>
 

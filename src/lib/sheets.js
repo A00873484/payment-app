@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import { config } from './config.js';
+//import { config } from './config.js';
 
 const sheets = google.sheets('v4');
 
@@ -21,17 +21,11 @@ export class SheetsManager {
         createdAt: new Date().toISOString()
       };
 
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 800));
       
-      return mockOrderData;
-
-      // Production implementation:
-      /*
       const response = await sheets.spreadsheets.values.get({
         auth: config.googleSheets.apiKey,
         spreadsheetId: config.googleSheets.spreadsheetId,
-        range: 'Orders!A:H',
+        range: 'Master!A:V',
       });
 
       const rows = response.data.values;
@@ -50,9 +44,40 @@ export class SheetsManager {
         status: orderRow[5],
         createdAt: orderRow[6]
       };
-      */
+      
     } catch (error) {
       console.error('Failed to fetch order details:', error);
+      throw new Error('Unable to retrieve order information');
+    }
+  }
+
+  static async fetchUserOrdersDetails(userPhone) {
+    try {
+      const response = await sheets.spreadsheets.values.get({
+        auth: config.googleSheets.apiKey,
+        spreadsheetId: config.googleSheets.spreadsheetId,
+        range: 'Master!A:V',
+      });
+
+      const rows = response.data.values;
+      const orderRows = rows.filter(row => row[0] === userPhone && row[14] !== '已發貨' && row[14] !== 'Cancelled' && row[15] !== '' && row[15] !== '未完成那箱' && row[15] !== '已取消');
+      
+      if (!orderRows || orderRows.length === 0) {
+        throw new Error('User not found');
+      }
+
+      return {"total": orderRows.reduce((total, orderTotal) => total + orderTotal), "orders":[...orderRows].map(orderRow => ({
+        orderId: orderRow[0],
+        customerName: orderRow[1],
+        customerEmail: orderRow[2],
+        items: JSON.parse(orderRow[3]),
+        total: parseFloat(orderRow[4]),
+        status: orderRow[5],
+        createdAt: orderRow[6]
+      }))};
+      
+    } catch (error) {
+      console.error('Failed to fetch user order details:', error);
       throw new Error('Unable to retrieve order information');
     }
   }

@@ -1,7 +1,8 @@
 import { SheetsManager } from '../../../lib/sheets';
 import { verifyToken } from '../../../lib/jwt';
+import { withAPIAuth } from '../../lib/middleware/apiAuth';
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -32,3 +33,6 @@ export default async function handler(req, res) {
     res.status(500).json({ error: error.message });
   }
 }
+
+// Apply authentication middleware (requires 'write' permission)
+export default withAPIAuth(['write'])(handler);

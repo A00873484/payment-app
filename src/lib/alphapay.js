@@ -1,5 +1,5 @@
-import axios from 'axios';
-import { config } from './config.js';
+//import axios from 'axios';
+//import { config } from './config.js';
 
 export class AlphaPayProcessor {
   static async processPayment(paymentData) {

@@ -1,6 +1,7 @@
 import { EmailService } from '../../lib/email';
+import { withAPIAuth } from '../../lib/middleware/apiAuth';
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -13,26 +14,30 @@ export default async function handler(req, res) {
     }
 
     const emailHTML = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-          <h1 style="margin: 0; font-size: 28px;">🛒 Payment Required</h1>
-          <p style="margin: 10px 0 0 0; font-size: 16px;">Complete your order payment</p>
+      <div style="font-family: 'Arial', sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f5f1; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.05);">
+        <!-- Header Section -->
+        <div style="background-color: #f5e1d5; text-align: center; padding: 30px;">
+          <img src="logo.png" alt="Plane" style="width: 80px; display: block; margin: 0 auto 10px;">
+          <h1 style="margin: 0; font-size: 26px; color: #2b2b2b; font-weight: bold;">🛒 Payment Needed</h1>
+          <p style="margin: 8px 0 0 0; font-size: 15px; color: #5c5c5c;">Complete your order payment to proceed</p>
         </div>
-        
-        <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-          <p>Dear ${customerName},</p>
-          <p>Your order <strong>#${orderId}</strong> is ready for payment.</p>
-          
-          ${orderTotal ? `<p><strong>Order Total: ${orderTotal}</strong></p>` : ''}
-          
+
+        <!-- Body Section -->
+        <div style="padding: 30px;">
+          <p style="font-size: 16px; color: #3a3a3a;">Dear ${customerName},</p>
+          <p style="font-size: 16px; color: #3a3a3a;">Your order <strong>#${orderId}</strong> is ready for payment.</p>
+
+          ${orderTotal ? `<p style="font-size: 16px; color: #3a3a3a;"><strong>Order Total: ${orderTotal}</strong></p>` : ''}
+
+          <!-- CTA Button -->
           <div style="text-align: center; margin: 30px 0;">
             <a href="${paymentUrl}" 
-               style="display: inline-block; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
-              🔒 Pay Now Securely
+              style="display: inline-block; background-color: #e6cba9; color: #2b2b2b; padding: 15px 30px; text-decoration: none; border-radius: 50px; font-weight: bold; font-size: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+              🔒 Pay Now
             </a>
           </div>
-          
-          <p style="font-size: 14px; color: #666; text-align: center;">
+
+          <p style="font-size: 13px; color: #7d7d7d; text-align: center; line-height: 1.4;">
             This payment link will expire in 24 hours.<br>
             🛡️ Your payment is secured with 256-bit SSL encryption.
           </p>
@@ -43,9 +48,7 @@ export default async function handler(req, res) {
     // In production, use your actual email service
     console.log('Sending payment email to:', customerEmail);
     console.log('Payment URL:', paymentUrl);
-
-    // Simulate email sending
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await EmailService.sendEmail(customerEmail, `Payment Required - Order #${orderId}`, emailHTML);
 
     res.status(200).json({
       success: true,
@@ -57,3 +60,6 @@ export default async function handler(req, res) {
     res.status(500).json({ error: error.message });
   }
 }
+
+// Apply authentication middleware (requires 'read' permission) for API access
+export default withAPIAuth(['read'])(handler);
