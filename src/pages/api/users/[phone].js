@@ -8,8 +8,8 @@ async function handler(req, res) {
   }
 
   try {
-    const { orderId } = req.query;
-    const token = req.headers.authorization?.replace('Bearer ', '');
+    const { phone } = req.query;
+    const token = req.headers.token;
 
     if (!token) {
       return res.status(401).json({ error: 'No token provided' });
@@ -20,12 +20,12 @@ async function handler(req, res) {
       return res.status(401).json({ error: 'Invalid or expired token' });
     }
 
-    // Verify the token contains the correct orderId
-    if (tokenValidation.payload.orderId !== orderId) {
-      return res.status(403).json({ error: 'Token does not match order ID' });
+    // Verify the token contains the correct phone
+    if (tokenValidation.payload.phone !== phone) {
+      return res.status(403).json({ error: 'Token does not match user ID' });
     }
 
-    const orderData = await SheetsManager.fetchOrderDetails(orderId);
+    const orderData = await SheetsManager.fetchOrderDetails(phone);
     res.status(200).json(orderData);
 
   } catch (error) {

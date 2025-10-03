@@ -3,7 +3,7 @@ import { SheetsManager } from '../../../lib/sheets';
 import { EmailService } from '../../../lib/email';
 import { verifyToken } from '../../../lib/jwt';
 import { InputValidator } from '../../../lib/validators';
-import { withAPIAuth } from '../../lib/middleware/apiAuth';
+import { withAPIAuth } from '../../../lib/middleware/apiAuth';
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
