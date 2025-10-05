@@ -4,7 +4,7 @@ import { APIKeyManager } from '../apiAuth';
 const API_KEYS = new Map([
   // Demo API keys (hash -> metadata)
   [
-    APIKeyManager.hashAPIKey('dan_adm1n001_X9aB7cD2LkQ8rT1vM3nZ6pW4sY0uJhEb'),
+    APIKeyManager.hashAPIKey(process.env.API_MASTER_KEY),
     {
       name: 'Admin API Key',
       permissions: ['read', 'write', 'admin'],

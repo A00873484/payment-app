@@ -74,7 +74,7 @@ export default function Home() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer dan_adm1n001_X9aB7cD2LkQ8rT1vM3nZ6pW4sY0uJhEb'
+          'Authorization': 'Bearer '+process.env.API_MASTER_KEY
         },
         body: JSON.stringify({
           customerEmail: demoForm.customerEmail,
@@ -107,7 +107,7 @@ export default function Home() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer dan_adm1n001_X9aB7cD2LkQ8rT1vM3nZ6pW4sY0uJhEb'
+          'Authorization': 'Bearer '+process.env.API_MASTER_KEY
         },
         body: JSON.stringify({
           customerEmail: customer.email,
