@@ -7,6 +7,9 @@ export const config = {
     publicKey: process.env.NEXT_PUBLIC_ALPHAPAY_PUBLIC_KEY,
     secretKey: process.env.ALPHAPAY_SECRET_KEY,
   },
+  api: {
+    masterKey: process.env.API_MASTER_KEY,
+  },
   jwt: {
     secret: process.env.JWT_SECRET,
   },

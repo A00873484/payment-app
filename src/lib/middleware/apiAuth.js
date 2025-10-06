@@ -45,6 +45,17 @@ export function withAPIAuth(requiredPermissions = []) {
   return function authMiddleware(handler) {
     return async function authenticatedHandler(req, res) {
       try {
+        const host = req.headers.host || '';
+        const origin = req.headers.origin || '';
+        const referer = req.headers.referer || '';
+        const isInternalRequest =
+          origin.includes(host) ||
+          referer.includes(host) ||
+          req.headers['x-internal-request'] === 'true';
+        if (isInternalRequest) {
+          // Skip API key check for internal requests
+          return handler(req, res);
+        }
         // Extract API key
         const apiKey = APIKeyManager.extractAPIKey(req);
         

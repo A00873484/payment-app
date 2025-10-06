@@ -213,34 +213,83 @@ export class SheetsManager {
         const colIndex = Object.fromEntries(
           header.map((colName, i) => [colName, i])
         );
+        dataRows.reduce((acc, row) => { 
+          acc[row[0]] = row; 
+          return acc; 
+        }, {});
+      
+        const ordersMap = new Map();
 
-        console.log(dataRows);
-  
-        const orders = dataRows
-          .filter(row => {
-            const status = row[colIndex[sheet_master.PAID_STATUS]]; 
-            return (status === 'pending' || status === 'unpaid') && status !== 'cancelled'; //row[2] === customerEmail &&
-          })
-          .map(row => ({
-            orderId: row[colIndex[sheet_master.ORDER_ID]],
-            customerName: row[colIndex[sheet_master.NAME]],
-            customerEmail: row[colIndex[sheet_master.EMAIL]],
-            items: [
-              {
-                category: row[colIndex[sheet_master.CATEGORY]],
-                productName: row[colIndex[sheet_master.PRODUCT_NAME]],
-                spec: row[colIndex[sheet_master.SPECIFICATIONS]],
-                quantity: parseInt(row[colIndex[sheet_master.QUANTITY]], 10) || 0,
-                price: parseFloat(row[colIndex[sheet_master.PRICE]]) || 0
+        dataRows.forEach(row => {
+          // Get order ID - this identifies the start of a new order
+          const orderId = row[colIndex[sheet_master.ORDER_ID]]?.trim();
+          
+          // Skip empty rows
+          if (!orderId && !row.some(cell => cell)) {
+            return;
+          }
+
+          // If this row has an order ID, it's either a new order or continuation
+          if (orderId) {
+            // Check if this order already exists
+            if (!ordersMap.has(orderId)) {
+              // New order - create it
+              const status = row[colIndex[sheet_master.PAID_STATUS]]?.trim() || 'pending';
+              
+              // Only process if status matches criteria
+              if ((status === 'pending' || status === 'unpaid' || status === '已通知') && status !== 'cancelled') {
+                ordersMap.set(orderId, {
+                  orderId: orderId,
+                  customerName: row[colIndex[sheet_master.NAME]]?.trim() || '',
+                  customerEmail: row[colIndex[sheet_master.EMAIL]]?.trim() || '',
+                  phoneNumber: row[colIndex[sheet_master.PHONE]]?.trim() || '',
+                  items: [],
+                  total: parseFloat(row[colIndex[sheet_master.TOTAL_ORDER_AMOUNT]]) || 0,
+                  status: status,
+                  createdAt: row[colIndex[sheet_master.ORDER_TIME]]?.trim() || '',
+                  notes: row[colIndex[sheet_master.REMARKS]]?.trim() || '',
+                  shippingMethod: row[colIndex[sheet_master.SHIPPING_METHOD]]?.trim() || '',
+                  address: row[colIndex[sheet_master.ADDRESS]]?.trim() || ''
+                });
               }
-            ],
-            total: parseFloat(row[colIndex[sheet_master.TOTAL_ORDER_AMOUNT]]) || 0,
-            status: row[colIndex[sheet_master.PAID_STATUS]],
-            createdAt: row[colIndex[sheet_master.ORDER_TIME]],
-            notes: row[colIndex[sheet_master.REMARKS]] || ''
-          }));
-  
-        return orders;
+            }
+          }
+
+          // Get the current order (either from the orderId in this row, or the last order we processed)
+          let currentOrder = null;
+          
+          if (orderId) {
+            currentOrder = ordersMap.get(orderId);
+          } else {
+            // This is a continuation row (no orderId), get the last order
+            const orders = Array.from(ordersMap.values());
+            currentOrder = orders[orders.length - 1];
+          }
+
+          // If we have a current order, add the item
+          if (currentOrder) {
+            const category = row[colIndex[sheet_master.CATEGORY]]?.trim();
+            const productName = row[colIndex[sheet_master.PRODUCT_NAME]]?.trim();
+            const spec = row[colIndex[sheet_master.SPECIFICATIONS]]?.trim();
+            const quantity = parseInt(row[colIndex[sheet_master.QUANTITY]], 10) || 0;
+            const price = parseFloat(row[colIndex[sheet_master.PRICE]]) || 0;
+
+            // Only add item if it has valid data
+            if (category || productName) {
+              currentOrder.items.push({
+                category: category || '',
+                productName: productName || '',
+                spec: spec || '',
+                quantity: quantity,
+                price: price,
+                name: `${productName}${spec ? ` (${spec})` : ''}` // Combined display name
+              });
+            }
+          }
+        });
+
+        // Convert map to array and return
+        return Array.from(ordersMap.values());
   
       } catch (error) {
         console.error('Failed to fetch customer orders:', error);

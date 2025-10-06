@@ -73,8 +73,7 @@ export default function Home() {
       const response = await fetch('/api/customer/portal-link', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer '+process.env.API_MASTER_KEY
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           customerEmail: demoForm.customerEmail,
@@ -106,8 +105,7 @@ export default function Home() {
       const response = await fetch('/api/customer/send-portal-email', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer '+process.env.API_MASTER_KEY
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           customerEmail: customer.email,
@@ -611,7 +609,7 @@ export default function Home() {
                   <div className="bg-blue-50 border-l-4 border-blue-500 p-6 rounded">
                     <h3 className="font-semibold text-blue-900 mb-2">🔑 Demo API Key</h3>
                     <code className="text-sm bg-white px-3 py-2 rounded block text-gray-800 font-mono break-all">
-                      dan_adm1n001_X9aB7cD2LkQ8rT1vM3nZ6pW4sY0uJhEb
+                      dem_0adm1n01_X9aB7cD2LkQ8rT1vM3nZ6pW4sY0uJhEb
                     </code>
                     <p className="text-xs text-blue-800 mt-2">
                       Use this API key for testing. Replace with your actual key in production.
