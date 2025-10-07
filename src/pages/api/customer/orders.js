@@ -9,8 +9,6 @@ export default async function handler(req, res) {
   try {
     // Extract token from Authorization header
     const token = req.headers.authorization?.replace('Bearer ', '');
-
-    console.log('Received token:', token);
     
     if (!token) {
       return res.status(401).json({ 

@@ -3,7 +3,7 @@
 // ===========================
 // Add this method to your existing SheetsManager class:
 import { google } from 'googleapis';
-import { sheet_master } from './const.js';
+import { sheet_master, sheet_user } from './const.js';
 import { config } from './config.js';
 import { oauth2Client } from './googleAuth.js';
 
@@ -16,6 +16,8 @@ const sheets = google.sheets({ version: 'v4', auth: oauth2Client });
 
 export class SheetsManager {
   
+  constructor() {}
+
   static async fetchOrderDetails(orderId) {
     try {
       // For demo purposes, return mock data
@@ -180,43 +182,44 @@ export class SheetsManager {
     }
   }
 
-  static async getCustomerUnpaidOrders(customerEmail) {
+  static getSheetsData = async (range) => {
+    const response = await sheets.spreadsheets.values.get({
+      //auth: config.googleSheets.apiKey,
+      spreadsheetId: config.googleSheets.spreadsheetId,
+      range, // widen range to cover all Master columns
+    });
+    const rows = response.data.values;
+  
+    // First row in Master sheet is the header row
+    const header = rows[0];
+    const dataRows = rows.slice(1);
+
+    // Build a lookup: column name (Chinese) -> index
+    const colIndex = Object.fromEntries(
+      header.map((colName, i) => [colName, i])
+    );
+    dataRows.reduce((acc, row) => { 
+      acc[row[0]] = row; 
+      return acc; 
+    }, {});
+    return { dataRows, colIndex  };
+  }
+
+  static async getCustomerUnpaidOrders(customerEmail, customerPhone) {
       try {
-        // In production, this would query your Google Sheets or database
-        // Filtering by customer email and status
-        
-        // Mock implementation - replace with actual Google Sheets query
-        /*const allOrders = await this.mockGetAllOrders();
-        
-        return allOrders.filter(order => 
-          order.customerEmail.toLowerCase() === customerEmail.toLowerCase() &&
-          (order.status === 'pending' || order.status === 'unpaid') &&
-          order.status !== 'cancelled'
-        );*/
-        
-        // Production implementation with Google Sheets:
-  
-        // Fetch from Master sheet instead of Orders
-        const response = await sheets.spreadsheets.values.get({
-          //auth: config.googleSheets.apiKey,
-          spreadsheetId: config.googleSheets.spreadsheetId,
-          range: 'Master!A:Z', // widen range to cover all Master columns
-        });
-  
-        const rows = response.data.values;
-  
-        // First row in Master sheet is the header row
-        const header = rows[0];
-        const dataRows = rows.slice(1);
-  
-        // Build a lookup: column name (Chinese) -> index
-        const colIndex = Object.fromEntries(
-          header.map((colName, i) => [colName, i])
-        );
-        dataRows.reduce((acc, row) => { 
-          acc[row[0]] = row; 
-          return acc; 
-        }, {});
+        if(!customerEmail && !customerPhone) {
+          throw new Error('Email or phone required to fetch orders');
+        } else if (!customerEmail || !customerPhone) {
+          const {dataRows, colIndex} = await this.getSheetsData('Users!A:K');
+          const userRow = dataRows.find(row => (customerEmail && row[colIndex[sheet_user.EMAIL]]?.trim().toLowerCase() === customerEmail.toLowerCase()) || (customerPhone && row[colIndex[sheet_user.PHONE]]?.trim() === customerPhone));
+          if (userRow) {
+            customerEmail = userRow[colIndex[sheet_user.EMAIL]]?.trim();
+            customerPhone = userRow[colIndex[sheet_user.PHONE]]?.trim();
+          } else {
+            throw new Error('User not found with provided email or phone');
+          }
+        }
+        const {dataRows, colIndex} = await this.getSheetsData('Master!A:Z');
       
         const ordersMap = new Map();
         let skip = false;
@@ -236,12 +239,14 @@ export class SheetsManager {
             // Check if this order already exists
             if (!ordersMap.has(orderId)) {
               // New order - create it
+              const customerVerified = (customerEmail && customerEmail.toLowerCase() === row[colIndex[sheet_master.EMAIL]]?.trim()) || (customerPhone && row[colIndex[sheet_master.PHONE]]?.trim() === customerPhone);
+
               const paidStatus = row[colIndex[sheet_master.PAID_STATUS]]?.trim() || 'none';
               const packingStatus = row[colIndex[sheet_master.PACKING_STATUS]]?.trim() || 'none';
               const shipStatus = row[colIndex[sheet_master.SHIPPING_STATUS]]?.trim() || 'none';
               
               // Only process if paidStatus matches criteria
-              if (paidStatus === '弃单' || paidStatus === '已付款' || shipStatus === '已發貨' || shipStatus === 'Cancelled' || shipStatus === 'Canceled' || packingStatus === '未完成那箱' || packingStatus === 'none' || packingStatus === '已取消') {
+              if (!customerVerified || paidStatus === '弃单' || paidStatus === '已付款' || shipStatus === '已發貨' || shipStatus === 'Cancelled' || shipStatus === 'Canceled' || packingStatus === '未完成那箱' || packingStatus === 'none' || packingStatus === '已取消') {
                 skip = true;
                 return;
               }

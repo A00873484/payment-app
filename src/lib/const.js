@@ -125,3 +125,16 @@ export const sheet_rawpt = {
   RECIPIENT_PHONE: '收货人电话',
   DELIVERY_ADDRESS: '地址'
 };
+
+export const sheet_user = {
+  PHONE: '電話',
+  WECHAT_ID: '微信ID(可以找到人)',
+  NAME: '名字',
+  RECIPIENT_NAME_EN: '收件人名字(英文)',
+  ADDRESS: '地址(自提填123)',
+  EMAIL: 'Email',
+  WEIGHT_KG: 'Weight (kg)',
+  DIMENSIONS: 'Dimensions (LxWxH)',
+  LABEL_URL: 'Label URL',
+  GENERATE_LABEL: 'Generate Label'
+};
