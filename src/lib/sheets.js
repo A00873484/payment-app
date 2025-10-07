@@ -219,6 +219,7 @@ export class SheetsManager {
         }, {});
       
         const ordersMap = new Map();
+        let skip = false;
 
         dataRows.forEach(row => {
           // Get order ID - this identifies the start of a new order
@@ -231,28 +232,40 @@ export class SheetsManager {
 
           // If this row has an order ID, it's either a new order or continuation
           if (orderId) {
+            skip = false;
             // Check if this order already exists
             if (!ordersMap.has(orderId)) {
               // New order - create it
-              const status = row[colIndex[sheet_master.PAID_STATUS]]?.trim() || 'pending';
+              const paidStatus = row[colIndex[sheet_master.PAID_STATUS]]?.trim() || 'none';
+              const packingStatus = row[colIndex[sheet_master.PACKING_STATUS]]?.trim() || 'none';
+              const shipStatus = row[colIndex[sheet_master.SHIPPING_STATUS]]?.trim() || 'none';
               
-              // Only process if status matches criteria
-              if ((status === 'pending' || status === 'unpaid' || status === '已通知') && status !== 'cancelled') {
-                ordersMap.set(orderId, {
-                  orderId: orderId,
-                  customerName: row[colIndex[sheet_master.NAME]]?.trim() || '',
-                  customerEmail: row[colIndex[sheet_master.EMAIL]]?.trim() || '',
-                  phoneNumber: row[colIndex[sheet_master.PHONE]]?.trim() || '',
-                  items: [],
-                  total: parseFloat(row[colIndex[sheet_master.TOTAL_ORDER_AMOUNT]]) || 0,
-                  status: status,
-                  createdAt: row[colIndex[sheet_master.ORDER_TIME]]?.trim() || '',
-                  notes: row[colIndex[sheet_master.REMARKS]]?.trim() || '',
-                  shippingMethod: row[colIndex[sheet_master.SHIPPING_METHOD]]?.trim() || '',
-                  address: row[colIndex[sheet_master.ADDRESS]]?.trim() || ''
-                });
+              // Only process if paidStatus matches criteria
+              if (paidStatus === '弃单' || paidStatus === '已付款' || shipStatus === '已發貨' || shipStatus === 'Cancelled' || shipStatus === 'Canceled' || packingStatus === '未完成那箱' || packingStatus === 'none' || packingStatus === '已取消') {
+                skip = true;
+                return;
               }
+              ordersMap.set(orderId, {
+                orderId: orderId,
+                customerName: row[colIndex[sheet_master.NAME]]?.trim() || '',
+                customerEmail: row[colIndex[sheet_master.EMAIL]]?.trim() || '',
+                phoneNumber: row[colIndex[sheet_master.PHONE]]?.trim() || '',
+                items: [],
+                total: parseFloat(row[colIndex[sheet_master.TOTAL_ORDER_AMOUNT]]) || 0,
+                paidStatus: paidStatus,
+                shipStatus: shipStatus,
+                packingStatus: packingStatus,
+                createdAt: row[colIndex[sheet_master.ORDER_TIME]]?.trim() || '',
+                notes: row[colIndex[sheet_master.REMARKS]]?.trim() || '',
+                shippingMethod: row[colIndex[sheet_master.SHIPPING_METHOD]]?.trim() || '',
+                address: row[colIndex[sheet_master.ADDRESS]]?.trim() || ''
+              });
+              
             }
+          }
+
+          if (skip) {
+            return;
           }
 
           // Get the current order (either from the orderId in this row, or the last order we processed)
@@ -275,7 +288,7 @@ export class SheetsManager {
             const price = parseFloat(row[colIndex[sheet_master.PRICE]]) || 0;
 
             // Only add item if it has valid data
-            if (category || productName) {
+            if ((category || productName) && category !== 'Shipping') {
               currentOrder.items.push({
                 category: category || '',
                 productName: productName || '',
