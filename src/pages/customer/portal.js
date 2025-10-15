@@ -739,7 +739,7 @@ export default function CustomerPortal() {
                               Confirming...
                             </span>
                           ) : (
-                            '✅ I Will Send E-Transfer'
+                            '✅ I Have Sent E-Transfer'
                           )}
                         </button>
 

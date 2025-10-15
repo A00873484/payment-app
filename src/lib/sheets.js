@@ -131,14 +131,38 @@ export class SheetsManager {
       console.log(`Updating order ${orderId} payment status (付款情況) to: ${paymentStatus}`);
       
       // Simulate Google Sheets update
-      await new Promise(resolve => setTimeout(resolve, 500));
+      /*await new Promise(resolve => setTimeout(resolve, 500));
       
       return {
         orderId,
         paymentStatus,
         updatedAt: new Date().toISOString()
-      };
+      };*/
 
+      const {dataRows, colIndex} = await this.getSheetsData('Master!A:Z');
+
+      const rowIndex = dataRows.findIndex(row => row[colIndex[sheet_master.ORDER_ID]]?.trim() === orderId);
+
+      if (rowIndex === -1) {
+        throw new Error('Order not found');
+      }
+
+      const updateRange = `Master!O${rowIndex + 1}`;
+      console.log(updateRange);
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: config.googleSheets.spreadsheetId,
+        range: updateRange,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [[paymentStatus]]
+        }
+      });
+
+      return {
+        orderId,
+        paymentStatus,
+        updatedAt: new Date().toISOString()
+      };
       /* Production implementation with Google Sheets API:
       
       // First, find the row number for this orderId
