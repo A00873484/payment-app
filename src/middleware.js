@@ -1,4 +1,4 @@
-/*import { withAuth } from "next-auth/middleware";
+import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 
 export default withAuth(
@@ -26,12 +26,3 @@ export const config = {
     '/admin((?!/signin|/error).*)',
   ],
 };
-*/
-import { NextResponse } from "next/server";
-
-export function middleware(req) {
-  console.log("[middleware] running:", req.nextUrl.pathname);
-  return NextResponse.next();
-}
-
-export const config = { matcher: ['/(.*)'] };

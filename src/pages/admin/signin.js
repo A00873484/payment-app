@@ -6,8 +6,7 @@ import Head from "next/head";
 import { useState } from "react";
 
 export default function AdminSignIn({ providers }) {
-    console.log("AdminSignIn")
-  const router = useRouter();
+ const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   
@@ -24,8 +23,6 @@ export default function AdminSignIn({ providers }) {
       setIsLoading(false);
     }
   };
-
-  console.log("Signin");
 
   return (
     <>
@@ -99,35 +96,26 @@ export default function AdminSignIn({ providers }) {
   );
 }
 
-/*export async function getServerSideProps(context) {
+export async function getServerSideProps(context) {
+  console.log("getServerSideProps");
+
   const session = await getServerSession(context.req, context.res, authOptions);
-  console.log("getServerSideProps", session);
-  // If already signed in, redirect to dashboard
+
+  // ✅ If already signed in, redirect to the dashboard
   if (session) {
     return {
       redirect: {
-        destination: "/admin/signin",
+        destination: "/admin",
         permanent: false,
       },
     };
   }
 
+  // ✅ Otherwise, load providers for the sign-in buttons
   const providers = await getProviders();
   
   return {
     props: { providers: providers ?? [] },
   };
-}*/
-
-export async function getServerSideProps(context) {
-  const session = await getServerSession(context.req, context.res, authOptions);
-  if (!session) {
-    return {
-      redirect: {
-        destination: "/admin/signin",
-        permanent: false,
-      },
-    };
-  }
-  return { props: { session } };
 }
+
