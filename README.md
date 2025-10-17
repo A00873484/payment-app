@@ -45,6 +45,21 @@ A secure Next.js application for processing order payments with Google Sheets in
    NEXT_PUBLIC_BASE_URL=http://localhost:3000
    ```
 
+   Setup your `src/lib/api-project.json` file 
+   
+   1. Go to the Google Cloud Console 
+      https://console.cloud.google.com/
+   2. Create a new project (or select an existing one).
+   3. In the left sidebar, go to:
+      IAM & Admin → Service Accounts
+   4. Click “+ CREATE SERVICE ACCOUNT”
+   5. Name it something like “payment-app-server”
+   6. Click Create and Continue (you can skip granting roles).
+   7. Click Done
+   8. Click on your newly created service account.
+   9. Go to the “Keys” tab → click “Add Key” → “Create new key” → JSON.
+   10. It will download a JSON file — this is your private key (keep it secret).
+
 3. **Run the development server**:
    ```bash
    npm run dev
