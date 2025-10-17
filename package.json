@@ -13,7 +13,8 @@
     "googleapis": "^128.0.0",
     "jose": "^5.1.0",
     "next": "15.5.2",
-    "nodemailer": "^7.0.9",
+    "next-auth": "^4.24.11",
+    "nodemailer": "^6.10.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "validator": "^13.11.0"

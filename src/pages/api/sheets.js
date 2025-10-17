@@ -1,13 +1,14 @@
 import { google } from 'googleapis';
-import { oauth2Client } from '@/lib/googleAuth';
+import credentials from "./api-project.json" assert { type: "json" };
 
 export default async function handler(req, res) {
-  /*oauth2Client.setCredentials({
-    access_token: req.body.accessToken,
-    refresh_token: req.body.refreshToken,
-  });*/
+  
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+  });
 
-  const sheets = google.sheets({ version: 'v4', auth: oauth2Client });
+  const sheets = google.sheets({ version: 'v4', auth });
 
   try {
     const response = await sheets.spreadsheets.values.get({
