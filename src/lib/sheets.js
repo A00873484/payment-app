@@ -5,14 +5,15 @@
 import { google } from 'googleapis';
 import { sheet_master, sheet_user } from './const.js';
 import { config } from './config.js';
-import { oauth2Client } from './googleAuth.js';
 
-/*oauth2Client.setCredentials({
-  access_token: req.body.accessToken,
-  refresh_token: req.body.refreshToken,
-});*/
+import credentials from "./api-project.json" assert { type: "json" };
 
-const sheets = google.sheets({ version: 'v4', auth: oauth2Client });
+const auth = new google.auth.GoogleAuth({
+  credentials,
+  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+});
+
+const sheets = google.sheets({ version: 'v4', auth });
 
 export class SheetsManager {
   
