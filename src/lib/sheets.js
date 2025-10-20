@@ -130,15 +130,6 @@ export class SheetsManager {
   static async updatePaymentStatus(orderId, paymentStatus) {
     try {
       console.log(`Updating order ${orderId} payment status (付款情況) to: ${paymentStatus}`);
-      
-      // Simulate Google Sheets update
-      /*await new Promise(resolve => setTimeout(resolve, 500));
-      
-      return {
-        orderId,
-        paymentStatus,
-        updatedAt: new Date().toISOString()
-      };*/
 
       const {dataRows, colIndex} = await this.getSheetsData('Master!A:Z');
 
@@ -148,9 +139,8 @@ export class SheetsManager {
         throw new Error('Order not found');
       }
 
-      const updateRange = `Master!O${rowIndex + 1}`;
-      console.log(updateRange);
-      await sheets.spreadsheets.values.update({
+      const updateRange = `Master!P${rowIndex + 2}`;
+      let result = await sheets.spreadsheets.values.update({
         spreadsheetId: config.googleSheets.spreadsheetId,
         range: updateRange,
         valueInputOption: 'USER_ENTERED',
@@ -158,49 +148,17 @@ export class SheetsManager {
           values: [[paymentStatus]]
         }
       });
-
-      return {
-        orderId,
-        paymentStatus,
-        updatedAt: new Date().toISOString()
-      };
-      /* Production implementation with Google Sheets API:
-      
-      // First, find the row number for this orderId
-      const response = await sheets.spreadsheets.values.get({
-        auth: config.googleSheets.apiKey,
-        spreadsheetId: config.googleSheets.spreadsheetId,
-        range: 'Orders!A:A', // Column A contains order IDs
-      });
-
-      const rows = response.data.values;
-      const rowIndex = rows.findIndex(row => row[0] === orderId);
-      
-      if (rowIndex === -1) {
-        throw new Error('Order not found');
+      if (result.status === 200 && result.data.updatedCells > 0) {
+        console.log(`✅ Successfully updated ${result.data.updatedCells} cell(s) in ${result.data.updatedRange}`);
+      } else {
+        console.warn(`⚠️ Update may not have succeeded:`, result.data);
       }
-
-      // Update the 付款情況 column (assuming it's column F)
-      // Adjust the column letter based on your actual sheet structure
-      const columnLetter = 'F'; // Change this to match your sheet
-      const updateRange = `Orders!${columnLetter}${rowIndex + 1}`;
       
-      await sheets.spreadsheets.values.update({
-        auth: config.googleSheets.apiKey,
-        spreadsheetId: config.googleSheets.spreadsheetId,
-        range: updateRange,
-        valueInputOption: 'USER_ENTERED',
-        requestBody: {
-          values: [[paymentStatus]]
-        }
-      });
-
       return {
         orderId,
         paymentStatus,
         updatedAt: new Date().toISOString()
       };
-      */
     } catch (error) {
       console.error('Failed to update payment status:', error);
       throw error;

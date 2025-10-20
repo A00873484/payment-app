@@ -59,14 +59,14 @@ export default async function handler(req, res) {
     // Payment status mapping:
     // cash = "現金" (Cash)
     // etransfer = "轉賬" (E-Transfer)
-    const paymentStatusChinese = paymentMethod === 'cash' ? '現金' : '轉賬';
+    //const paymentStatusChinese = paymentMethod === 'cash' ? '現金' : '轉賬';
     
     const updateResults = [];
     for (const orderId of orderIds) {
       try {
         const result = await SheetsManager.updatePaymentStatus(
           orderId,
-          paymentStatusChinese
+          paymentMethod
         );
         updateResults.push({ orderId, success: true, result });
       } catch (error) {
