@@ -229,10 +229,20 @@ export class SheetsManager {
               const shipStatus = row[colIndex[sheet_master.SHIPPING_STATUS]]?.trim() || 'none';
               
               // Only process if paidStatus matches criteria
-              if (!customerVerified || paidStatus === '弃单' || paidStatus === '已付款' || shipStatus === '已發貨' || shipStatus === 'Cancelled' || shipStatus === 'Canceled' || packingStatus === '未完成那箱' || packingStatus === 'none' || packingStatus === '已取消') {
+              const invalidPaidStatuses = ['弃单', '已付款', 'cash', 'etransfer'];
+              const invalidShipStatuses = ['已發貨', 'Cancelled', 'Canceled'];
+              const invalidPackingStatuses = ['未完成那箱', 'none', '已取消'];
+
+              if (
+                !customerVerified ||
+                invalidPaidStatuses.includes(paidStatus) ||
+                invalidShipStatuses.includes(shipStatus) ||
+                invalidPackingStatuses.includes(packingStatus)
+              ) {
                 skip = true;
                 return;
               }
+
               ordersMap.set(orderId, {
                 orderId: orderId,
                 customerName: row[colIndex[sheet_master.NAME]]?.trim() || '',
