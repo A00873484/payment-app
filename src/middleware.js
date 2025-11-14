@@ -22,7 +22,7 @@ export default withAuth(
 export const config = {
   matcher: [
     '/',
-    '/api/admin/:path*',
+    '/api/((?!/auth|/customer).*)',
     '/admin((?!/signin|/error).*)',
   ],
 };

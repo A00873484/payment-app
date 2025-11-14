@@ -10,7 +10,7 @@ export default function AdminSignIn({ providers }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   
-  const callbackUrl = "/admin"; // NOT router.query.callbackUrl
+  const callbackUrl = "/admin";
 
 
   const handleOAuthSignIn = async (providerId) => {

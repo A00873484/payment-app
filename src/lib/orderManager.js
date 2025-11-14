@@ -6,6 +6,10 @@ export class CustomerOrderManager {
     return SheetsManager.getCustomerUnpaidOrders(customerEmail);
   }
 
+  static async getAllCustomersWithUnpaidOrders() {
+    return SheetsManager.getAllCustomersWithUnpaidOrders();
+  }
+
   // Mock data for demonstration
   static async mockGetAllOrders() {
     return [

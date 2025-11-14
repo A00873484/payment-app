@@ -2,7 +2,7 @@
 // src/pages/index.js - Complete Dashboard Page
 // ===========================
 import { useSession, signOut } from "next-auth/react";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 
@@ -17,24 +17,30 @@ export default function AdminDashboard() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [customers, setCustomers] = useState([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(true);
 
-  // Demo customer data
-  const demoCustomers = [
-    {
-      email: 'john@example.com',
-      name: 'John Doe',
-      unpaidOrders: 3,
-      totalAmount: 164.95,
-      orders: ['ORD-2024-001', 'ORD-2024-005', 'ORD-2024-008']
-    },
-    {
-      email: 'jane@example.com',
-      name: 'Jane Smith',
-      unpaidOrders: 1,
-      totalAmount: 300.00,
-      orders: ['ORD-2024-002']
-    }
-  ];
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      try {
+        const response = await fetch('/api/customers');
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to fetch customers');
+        }
+
+        setCustomers(data.customers);
+      } catch (err) {
+        console.error('Error fetching customers:', err);
+        setError(err.message);
+      } finally {
+        setLoadingCustomers(false);
+      }
+    };
+
+    fetchCustomers();
+  }, []);
 
   const handleDemoFormChange = (field, value) => {
     setDemoForm(prev => ({ ...prev, [field]: value }));
@@ -184,10 +190,10 @@ export default function AdminDashboard() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center py-6">
               <div className="flex items-center">
-                <div className="text-3xl mr-3">👨‍💼</div>
+                <div className="text-3xl mr-3">💳</div>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-                  <p className="text-sm text-gray-600">Payment Portal Management</p>
+                  <h1 className="text-2xl font-bold text-gray-900">Customer Payment Portal</h1>
+                  <p className="text-sm text-gray-600">Multi-Order Payment System</p>
                 </div>
               </div>
               
@@ -225,29 +231,7 @@ export default function AdminDashboard() {
         </div>
 
         <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-cyan-500">
-          {/* Header */}
-          <div className="bg-white shadow-lg">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex justify-between items-center py-6">
-                <div className="flex items-center">
-                  <div className="text-3xl mr-3">💳</div>
-                  <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Customer Payment Portal</h1>
-                    <p className="text-sm text-gray-600">Multi-Order Payment System</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-4">
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    🔒 Secure
-                  </span>
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                    ✅ Active
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
+          
           {/* Main Content */}
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             {/* Tab Navigation */}
@@ -256,7 +240,7 @@ export default function AdminDashboard() {
                 <nav className="-mb-px flex flex-wrap space-x-4 md:space-x-8 px-6">
                   {[
                     { id: 'demo', label: 'Generate Portal Links', icon: '🔗' },
-                    { id: 'customers', label: 'Demo Customers', icon: '👥' },
+                    { id: 'customers', label: 'Customers', icon: '👥' },
                     { id: 'features', label: 'Features', icon: '⚡' },
                     { id: 'api', label: 'API Reference', icon: '💻' }
                   ].map((tab) => (
@@ -409,7 +393,7 @@ export default function AdminDashboard() {
                 {activeTab === 'customers' && (
                   <div className="space-y-6">
                     <div>
-                      <h2 className="text-2xl font-bold text-gray-900 mb-4">👥 Demo Customers</h2>
+                      <h2 className="text-2xl font-bold text-gray-900 mb-4">👥 Customers</h2>
                       <p className="text-gray-600 mb-6">
                         Test customers with unpaid orders. Send them a portal link to test the multi-order payment flow.
                       </p>
@@ -428,7 +412,12 @@ export default function AdminDashboard() {
                     )}
 
                     <div className="grid gap-6">
-                      {demoCustomers.map((customer, index) => (
+                      { loadingCustomers ? (
+                        <p className="text-gray-500">Loading customers...</p>
+                      ) : customers.length === 0 ? (
+                        <p className="text-gray-500">No customers found.</p>
+                      ) : (
+                        customers.map((customer, index) => (
                         <div key={index} className="bg-white border-2 border-gray-200 rounded-xl p-6 hover:shadow-lg transition-shadow">
                           <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-4">
                             <div>
@@ -472,7 +461,7 @@ export default function AdminDashboard() {
                             </button>
                           </div>
                         </div>
-                      ))}
+                      )))}
                     </div>
                   </div>
                 )}

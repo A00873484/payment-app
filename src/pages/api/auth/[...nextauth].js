@@ -21,7 +21,6 @@ export const authOptions = {
   
   callbacks: {
     async signIn({ user, account, profile }) {
-        console.log('signin')
       // Optional: Whitelist admin emails
       const allowedEmails = [
         'admin@example.com',
@@ -48,7 +47,6 @@ export const authOptions = {
     },
     
     async session({ session, token }) {
-        console.log('session')
       if (token) {
         session.user.id = token.id;
         session.user.email = token.email;

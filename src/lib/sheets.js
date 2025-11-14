@@ -307,4 +307,133 @@ export class SheetsManager {
         throw new Error('Unable to retrieve customer orders');
       }
     }
+
+    static async getAllCustomersWithUnpaidOrders() {
+       try {
+        const {dataRows, colIndex} = await this.getSheetsData('Master!A:Z');
+
+        const ordersMap = new Map();
+        const customersMap = new Map();
+
+        function addOrderToUser(order) {
+          const { customerEmail, phoneNumber, customerName, total, orderId } = order;
+          const customerId = customerEmail || phoneNumber;
+          if (!customersMap.has(customerId)) {
+            customersMap.set(customerId, {
+              email: customerEmail,
+              phone: phoneNumber,
+              name: customerName,
+              unpaidOrders: 0,
+              totalAmount: 0,
+              orders: []
+            });
+          }
+
+          const customer = customersMap.get(customerId);
+          customer.unpaidOrders += 1;
+          customer.totalAmount += total;
+          customer.orders.push(orderId);
+        }
+
+        let skip = false;
+      
+        dataRows.forEach(row => {
+          // Get order ID - this identifies the start of a new order
+          const orderId = row[colIndex[sheet_master.ORDER_ID]]?.trim();
+          
+          // Skip empty rows
+          if (!orderId && !row.some(cell => cell)) {
+            return;
+          }
+
+          // If this row has an order ID, it's either a new order or continuation
+          if (orderId) {
+            skip = false;
+            // Check if this order already exists
+            if (!ordersMap.has(orderId)) {
+              // New order - create it
+              
+              const paidStatus = row[colIndex[sheet_master.PAID_STATUS]]?.trim() || 'none';
+              const packingStatus = row[colIndex[sheet_master.PACKING_STATUS]]?.trim() || 'none';
+              const shipStatus = row[colIndex[sheet_master.SHIPPING_STATUS]]?.trim() || 'none';
+              
+              // Only process if paidStatus matches criteria
+              const invalidPaidStatuses = ['弃单', '已付款', 'cash', 'etransfer'];
+              const invalidShipStatuses = ['已發貨', 'Cancelled', 'Canceled'];
+              const invalidPackingStatuses = ['未完成那箱', 'none', '已取消'];
+
+              if (
+                invalidPaidStatuses.includes(paidStatus) ||
+                invalidShipStatuses.includes(shipStatus) ||
+                invalidPackingStatuses.includes(packingStatus)
+              ) {
+                skip = true;
+                return;
+              }
+
+              ordersMap.set(orderId, {
+                orderId: orderId,
+                customerName: row[colIndex[sheet_master.NAME]]?.trim() || '',
+                customerEmail: row[colIndex[sheet_master.EMAIL]]?.trim() || '',
+                phoneNumber: row[colIndex[sheet_master.PHONE]]?.trim() || '',
+                items: [],
+                total: parseFloat(row[colIndex[sheet_master.TOTAL_ORDER_AMOUNT]]) || 0,
+                paidStatus: paidStatus,
+                shipStatus: shipStatus,
+                packingStatus: packingStatus,
+                createdAt: row[colIndex[sheet_master.ORDER_TIME]]?.trim() || '',
+                notes: row[colIndex[sheet_master.REMARKS]]?.trim() || '',
+                shippingMethod: row[colIndex[sheet_master.SHIPPING_METHOD]]?.trim() || '',
+                address: row[colIndex[sheet_master.ADDRESS]]?.trim() || ''
+              });
+              
+            }
+          }
+
+          if (skip) {
+            return;
+          }
+
+          // Get the current order (either from the orderId in this row, or the last order we processed)
+          let currentOrder = null;
+          
+          if (orderId) {
+            currentOrder = ordersMap.get(orderId);
+            addOrderToUser(currentOrder);
+          } else {
+            // This is a continuation row (no orderId), get the last order
+            const orders = Array.from(ordersMap.values());
+            currentOrder = orders[orders.length - 1];
+          }
+
+          // If we have a current order, add the item
+          if (currentOrder) {
+            const category = row[colIndex[sheet_master.CATEGORY]]?.trim();
+            const productName = row[colIndex[sheet_master.PRODUCT_NAME]]?.trim();
+            const spec = row[colIndex[sheet_master.SPECIFICATIONS]]?.trim();
+            const quantity = parseInt(row[colIndex[sheet_master.QUANTITY]], 10) || 0;
+            const price = parseFloat(row[colIndex[sheet_master.PRICE]]) || 0;
+
+            // Only add item if it has valid data
+            if ((category || productName) && category !== 'Shipping') {
+              currentOrder.items.push({
+                category: category || '',
+                productName: productName || '',
+                spec: spec || '',
+                quantity: quantity,
+                price: price,
+                name: `${productName}${spec ? ` (${spec})` : ''}` // Combined display name
+              });
+            }
+          }
+        });
+
+        // Convert map to array and return
+        return Array.from(customersMap.values());
+
+      } catch (error) {
+        console.error('Failed to fetch customer orders:', error);
+        throw new Error('Unable to retrieve customer orders');
+      }
+    }
 }
