@@ -15,36 +15,55 @@ const auth = new google.auth.GoogleAuth({
 
 const sheets = google.sheets({ version: 'v4', auth });
 
+let masterCache = null;
+let masterCacheAt = 0;
+const MASTER_CACHE_TTL = 30_000; // 30 seconds
+
+
 export class SheetsManager {
-  
   constructor() {}
+
+  static async getSheetsData(range) {
+    if (range === "Master!A:Z") {
+      const now = Date.now();
+      if (masterCache && now - masterCacheAt < MASTER_CACHE_TTL) {
+        return masterCache;
+      }
+    }
+
+    const response = await sheets.spreadsheets.values.get({
+      auth: config.googleSheets.apiKey,
+      spreadsheetId: config.googleSheets.spreadsheetId,
+      range,
+    });
+
+    const rows = response.data.values;
+    const header = rows[0];
+    const dataRows = rows.slice(1);
+    const colIndex = Object.fromEntries(
+      header.map((colName, i) => [colName, i])
+    );
+
+    const result = { dataRows, colIndex };
+
+    if (range === "Master!A:Z") {
+      masterCache = result;
+      masterCacheAt = Date.now();
+    }
+
+    return result;
+  }
+
+  static invalidateMasterCache() {
+    masterCache = null;
+    masterCacheAt = 0;
+  }
+
 
   static async fetchOrderDetails(orderId) {
     try {
-      // For demo purposes, return mock data
-      // In production, replace with actual Google Sheets API call
-      const mockOrderData = {
-        orderId: orderId,
-        customerName: 'John Doe',
-        customerEmail: 'john@example.com',
-        items: [
-          { name: 'Premium Widget', price: 29.99, quantity: 2 },
-          { name: 'Express Shipping', price: 9.99, quantity: 1 }
-        ],
-        total: 69.97,
-        status: 'pending',
-        createdAt: new Date().toISOString()
-      };
-
-      
-      const response = await sheets.spreadsheets.values.get({
-        auth: config.googleSheets.apiKey,
-        spreadsheetId: config.googleSheets.spreadsheetId,
-        range: 'Master!A:V',
-      });
-
-      const rows = response.data.values;
-      const orderRow = rows.find(row => row[0] === orderId);
+      const {dataRows} = this.getSheetsData('Master!A:Z');
+      const orderRow = dataRows.find(row => row[0] === orderId);
       
       if (!orderRow) {
         throw new Error('Order not found');
@@ -68,14 +87,9 @@ export class SheetsManager {
 
   static async fetchUserOrdersDetails(userPhone) {
     try {
-      const response = await sheets.spreadsheets.values.get({
-        auth: config.googleSheets.apiKey,
-        spreadsheetId: config.googleSheets.spreadsheetId,
-        range: 'Master!A:V',
-      });
-
-      const rows = response.data.values;
-      const orderRows = rows.filter(row => row[0] === userPhone && row[14] !== '已發貨' && row[14] !== 'Cancelled' && row[15] !== '' && row[15] !== '未完成那箱' && row[15] !== '已取消');
+      const {dataRows} = this.getSheetsData('Master!A:Z');
+      
+      const orderRows = dataRows.filter(row => row[0] === userPhone && row[14] !== '已發貨' && row[14] !== 'Cancelled' && row[15] !== '' && row[15] !== '未完成那箱' && row[15] !== '已取消');
       
       if (!orderRows || orderRows.length === 0) {
         throw new Error('User not found');
@@ -165,27 +179,134 @@ export class SheetsManager {
     }
   }
 
-  static getSheetsData = async (range) => {
-    const response = await sheets.spreadsheets.values.get({
-      //auth: config.googleSheets.apiKey,
-      spreadsheetId: config.googleSheets.spreadsheetId,
-      range, // widen range to cover all Master columns
-    });
-    const rows = response.data.values;
-  
-    // First row in Master sheet is the header row
-    const header = rows[0];
-    const dataRows = rows.slice(1);
+  /** 
+   * Params: { filter: FilterCriteria {
+   *  paidStatusFilter?: string[];
+   *  shippingStatusFilter?: string[];
+   *  packingStatusFilter?: string[];
+   * }
+   * Returns: Array of customers with their orders
+  }*/
+  async processMasterData(filter) {
+    const {paidStatusFilter, shippingStatusFilter, packingStatusFilter, email, phone} = filter || {};
+    const {dataRows, colIndex} = await this.getSheetsData('Master!A:Z');
+      
+    const ordersMap = new Map();
+    const customersMap = new Map();
 
-    // Build a lookup: column name (Chinese) -> index
-    const colIndex = Object.fromEntries(
-      header.map((colName, i) => [colName, i])
-    );
-    dataRows.reduce((acc, row) => { 
-      acc[row[0]] = row; 
-      return acc; 
-    }, {});
-    return { dataRows, colIndex  };
+    function addOrderToUser(order) {
+      const { customerEmail, phoneNumber, customerName, total, orderId } = order;
+      const customerId = customerEmail || phoneNumber;
+      if (!customersMap.has(customerId)) {
+        customersMap.set(customerId, {
+          email: customerEmail,
+          phone: phoneNumber,
+          name: customerName,
+          unpaidOrders: 0,
+          totalAmount: 0,
+          orders: []
+        });
+      }
+
+      const customer = customersMap.get(customerId);
+      customer.unpaidOrders += 1;
+      customer.totalAmount += total;
+      customer.orders.push(orderId);
+    }
+
+    let skip = false;
+
+    dataRows.forEach(row => {
+      // Get order ID - this identifies the start of a new order
+      const orderId = row[colIndex[sheet_master.ORDER_ID]]?.trim();
+      
+      // Skip empty rows
+      if (!orderId && !row.some(cell => cell)) {
+        return;
+      }
+
+      // If this row has an order ID, it's either a new order or continuation
+      if (orderId) {
+        skip = false;
+        // Check if this order already exists
+        if (!ordersMap.has(orderId)) {
+          // New order - create it
+
+          const customerVerified = ((email && email.toLowerCase() === row[colIndex[sheet_master.EMAIL]]?.trim()) || (phone && row[colIndex[sheet_master.PHONE]]?.trim() === phone)) || (!email && !phone);
+
+          const paidStatus = row[colIndex[sheet_master.PAID_STATUS]]?.trim() || 'none';
+          const packingStatus = row[colIndex[sheet_master.PACKING_STATUS]]?.trim() || 'none';
+          const shipStatus = row[colIndex[sheet_master.SHIPPING_STATUS]]?.trim() || 'none';
+
+          if (
+            !customerVerified ||
+            paidStatusFilter.includes(paidStatus) ||
+            shippingStatusFilter.includes(shipStatus) ||
+            packingStatusFilter.includes(packingStatus)
+          ) {
+            skip = true;
+            return;
+          }
+
+          ordersMap.set(orderId, {
+            orderId: orderId,
+            customerName: row[colIndex[sheet_master.NAME]]?.trim() || '',
+            customerEmail: row[colIndex[sheet_master.EMAIL]]?.trim() || '',
+            phoneNumber: row[colIndex[sheet_master.PHONE]]?.trim() || '',
+            items: [],
+            total: parseFloat(row[colIndex[sheet_master.TOTAL_ORDER_AMOUNT]]) || 0,
+            paidStatus: paidStatus,
+            shipStatus: shipStatus,
+            packingStatus: packingStatus,
+            createdAt: row[colIndex[sheet_master.ORDER_TIME]]?.trim() || '',
+            notes: row[colIndex[sheet_master.REMARKS]]?.trim() || '',
+            shippingMethod: row[colIndex[sheet_master.SHIPPING_METHOD]]?.trim() || '',
+            address: row[colIndex[sheet_master.ADDRESS]]?.trim() || ''
+          });
+          
+        }
+      }
+
+      if (skip) {
+        return;
+      }
+
+      // Get the current order (either from the orderId in this row, or the last order we processed)
+      let currentOrder = null;
+      
+      if (orderId) {
+        currentOrder = ordersMap.get(orderId);
+        addOrderToUser(currentOrder);
+      } else {
+        // This is a continuation row (no orderId), get the last order
+        const orders = Array.from(ordersMap.values());
+        currentOrder = orders[orders.length - 1];
+      }
+
+      // If we have a current order, add the item
+      if (currentOrder) {
+        const category = row[colIndex[sheet_master.CATEGORY]]?.trim();
+        const productName = row[colIndex[sheet_master.PRODUCT_NAME]]?.trim();
+        const spec = row[colIndex[sheet_master.SPECIFICATIONS]]?.trim();
+        const quantity = parseInt(row[colIndex[sheet_master.QUANTITY]], 10) || 0;
+        const price = parseFloat(row[colIndex[sheet_master.PRICE]]) || 0;
+
+        // Only add item if it has valid data
+        if ((category || productName) && category !== 'Shipping') {
+          currentOrder.items.push({
+            category: category || '',
+            productName: productName || '',
+            spec: spec || '',
+            quantity: quantity,
+            price: price,
+            name: `${productName}${spec ? ` (${spec})` : ''}` // Combined display name
+          });
+        }
+      }
+    });
+
+    // Convert map to array and return
+    return Array.from(customersMap.values());
   }
 
   static async getCustomerUnpaidOrders(customerEmail, customerPhone) {
@@ -202,106 +323,10 @@ export class SheetsManager {
             throw new Error('User not found with provided email or phone');
           }
         }
-        const {dataRows, colIndex} = await this.getSheetsData('Master!A:Z');
-      
-        const ordersMap = new Map();
-        let skip = false;
-
-        dataRows.forEach(row => {
-          // Get order ID - this identifies the start of a new order
-          const orderId = row[colIndex[sheet_master.ORDER_ID]]?.trim();
-          
-          // Skip empty rows
-          if (!orderId && !row.some(cell => cell)) {
-            return;
-          }
-
-          // If this row has an order ID, it's either a new order or continuation
-          if (orderId) {
-            skip = false;
-            // Check if this order already exists
-            if (!ordersMap.has(orderId)) {
-              // New order - create it
-              const customerVerified = (customerEmail && customerEmail.toLowerCase() === row[colIndex[sheet_master.EMAIL]]?.trim()) || (customerPhone && row[colIndex[sheet_master.PHONE]]?.trim() === customerPhone);
-
-              const paidStatus = row[colIndex[sheet_master.PAID_STATUS]]?.trim() || 'none';
-              const packingStatus = row[colIndex[sheet_master.PACKING_STATUS]]?.trim() || 'none';
-              const shipStatus = row[colIndex[sheet_master.SHIPPING_STATUS]]?.trim() || 'none';
-              
-              // Only process if paidStatus matches criteria
-              const invalidPaidStatuses = ['弃单', '已付款', 'cash', 'etransfer'];
-              const invalidShipStatuses = ['已發貨', 'Cancelled', 'Canceled'];
-              const invalidPackingStatuses = ['未完成那箱', 'none', '已取消'];
-
-              if (
-                !customerVerified ||
-                invalidPaidStatuses.includes(paidStatus) ||
-                invalidShipStatuses.includes(shipStatus) ||
-                invalidPackingStatuses.includes(packingStatus)
-              ) {
-                skip = true;
-                return;
-              }
-
-              ordersMap.set(orderId, {
-                orderId: orderId,
-                customerName: row[colIndex[sheet_master.NAME]]?.trim() || '',
-                customerEmail: row[colIndex[sheet_master.EMAIL]]?.trim() || '',
-                phoneNumber: row[colIndex[sheet_master.PHONE]]?.trim() || '',
-                items: [],
-                total: parseFloat(row[colIndex[sheet_master.TOTAL_ORDER_AMOUNT]]) || 0,
-                paidStatus: paidStatus,
-                shipStatus: shipStatus,
-                packingStatus: packingStatus,
-                createdAt: row[colIndex[sheet_master.ORDER_TIME]]?.trim() || '',
-                notes: row[colIndex[sheet_master.REMARKS]]?.trim() || '',
-                shippingMethod: row[colIndex[sheet_master.SHIPPING_METHOD]]?.trim() || '',
-                address: row[colIndex[sheet_master.ADDRESS]]?.trim() || ''
-              });
-              
-            }
-          }
-
-          if (skip) {
-            return;
-          }
-
-          // Get the current order (either from the orderId in this row, or the last order we processed)
-          let currentOrder = null;
-          
-          if (orderId) {
-            currentOrder = ordersMap.get(orderId);
-          } else {
-            // This is a continuation row (no orderId), get the last order
-            const orders = Array.from(ordersMap.values());
-            currentOrder = orders[orders.length - 1];
-          }
-
-          // If we have a current order, add the item
-          if (currentOrder) {
-            const category = row[colIndex[sheet_master.CATEGORY]]?.trim();
-            const productName = row[colIndex[sheet_master.PRODUCT_NAME]]?.trim();
-            const spec = row[colIndex[sheet_master.SPECIFICATIONS]]?.trim();
-            const quantity = parseInt(row[colIndex[sheet_master.QUANTITY]], 10) || 0;
-            const price = parseFloat(row[colIndex[sheet_master.PRICE]]) || 0;
-
-            // Only add item if it has valid data
-            if ((category || productName) && category !== 'Shipping') {
-              currentOrder.items.push({
-                category: category || '',
-                productName: productName || '',
-                spec: spec || '',
-                quantity: quantity,
-                price: price,
-                name: `${productName}${spec ? ` (${spec})` : ''}` // Combined display name
-              });
-            }
-          }
-        });
-
-        // Convert map to array and return
-        return Array.from(ordersMap.values());
-  
+        return await this.processMasterData({
+           paidStatusFilter: ['弃单', '已付款', 'cash', 'etransfer'],
+           shipStatusFilter: ['已發貨', 'Cancelled', 'Canceled'],
+           packingStatusFilter: ['未完成那箱', 'none', '已取消']})[0];
       } catch (error) {
         console.error('Failed to fetch customer orders:', error);
         throw new Error('Unable to retrieve customer orders');
@@ -310,126 +335,10 @@ export class SheetsManager {
 
     static async getAllCustomersWithUnpaidOrders() {
        try {
-        const {dataRows, colIndex} = await this.getSheetsData('Master!A:Z');
-
-        const ordersMap = new Map();
-        const customersMap = new Map();
-
-        function addOrderToUser(order) {
-          const { customerEmail, phoneNumber, customerName, total, orderId } = order;
-          const customerId = customerEmail || phoneNumber;
-          if (!customersMap.has(customerId)) {
-            customersMap.set(customerId, {
-              email: customerEmail,
-              phone: phoneNumber,
-              name: customerName,
-              unpaidOrders: 0,
-              totalAmount: 0,
-              orders: []
-            });
-          }
-
-          const customer = customersMap.get(customerId);
-          customer.unpaidOrders += 1;
-          customer.totalAmount += total;
-          customer.orders.push(orderId);
-        }
-
-        let skip = false;
-      
-        dataRows.forEach(row => {
-          // Get order ID - this identifies the start of a new order
-          const orderId = row[colIndex[sheet_master.ORDER_ID]]?.trim();
-          
-          // Skip empty rows
-          if (!orderId && !row.some(cell => cell)) {
-            return;
-          }
-
-          // If this row has an order ID, it's either a new order or continuation
-          if (orderId) {
-            skip = false;
-            // Check if this order already exists
-            if (!ordersMap.has(orderId)) {
-              // New order - create it
-              
-              const paidStatus = row[colIndex[sheet_master.PAID_STATUS]]?.trim() || 'none';
-              const packingStatus = row[colIndex[sheet_master.PACKING_STATUS]]?.trim() || 'none';
-              const shipStatus = row[colIndex[sheet_master.SHIPPING_STATUS]]?.trim() || 'none';
-              
-              // Only process if paidStatus matches criteria
-              const invalidPaidStatuses = ['弃单', '已付款', 'cash', 'etransfer'];
-              const invalidShipStatuses = ['已發貨', 'Cancelled', 'Canceled'];
-              const invalidPackingStatuses = ['未完成那箱', 'none', '已取消'];
-
-              if (
-                invalidPaidStatuses.includes(paidStatus) ||
-                invalidShipStatuses.includes(shipStatus) ||
-                invalidPackingStatuses.includes(packingStatus)
-              ) {
-                skip = true;
-                return;
-              }
-
-              ordersMap.set(orderId, {
-                orderId: orderId,
-                customerName: row[colIndex[sheet_master.NAME]]?.trim() || '',
-                customerEmail: row[colIndex[sheet_master.EMAIL]]?.trim() || '',
-                phoneNumber: row[colIndex[sheet_master.PHONE]]?.trim() || '',
-                items: [],
-                total: parseFloat(row[colIndex[sheet_master.TOTAL_ORDER_AMOUNT]]) || 0,
-                paidStatus: paidStatus,
-                shipStatus: shipStatus,
-                packingStatus: packingStatus,
-                createdAt: row[colIndex[sheet_master.ORDER_TIME]]?.trim() || '',
-                notes: row[colIndex[sheet_master.REMARKS]]?.trim() || '',
-                shippingMethod: row[colIndex[sheet_master.SHIPPING_METHOD]]?.trim() || '',
-                address: row[colIndex[sheet_master.ADDRESS]]?.trim() || ''
-              });
-              
-            }
-          }
-
-          if (skip) {
-            return;
-          }
-
-          // Get the current order (either from the orderId in this row, or the last order we processed)
-          let currentOrder = null;
-          
-          if (orderId) {
-            currentOrder = ordersMap.get(orderId);
-            addOrderToUser(currentOrder);
-          } else {
-            // This is a continuation row (no orderId), get the last order
-            const orders = Array.from(ordersMap.values());
-            currentOrder = orders[orders.length - 1];
-          }
-
-          // If we have a current order, add the item
-          if (currentOrder) {
-            const category = row[colIndex[sheet_master.CATEGORY]]?.trim();
-            const productName = row[colIndex[sheet_master.PRODUCT_NAME]]?.trim();
-            const spec = row[colIndex[sheet_master.SPECIFICATIONS]]?.trim();
-            const quantity = parseInt(row[colIndex[sheet_master.QUANTITY]], 10) || 0;
-            const price = parseFloat(row[colIndex[sheet_master.PRICE]]) || 0;
-
-            // Only add item if it has valid data
-            if ((category || productName) && category !== 'Shipping') {
-              currentOrder.items.push({
-                category: category || '',
-                productName: productName || '',
-                spec: spec || '',
-                quantity: quantity,
-                price: price,
-                name: `${productName}${spec ? ` (${spec})` : ''}` // Combined display name
-              });
-            }
-          }
-        });
-
-        // Convert map to array and return
-        return Array.from(customersMap.values());
+        return await this.processMasterData({
+           paidStatusFilter: ['弃单', '已付款', 'cash', 'etransfer'],
+           shipStatusFilter: ['已發貨', 'Cancelled', 'Canceled'],
+           packingStatusFilter: ['未完成那箱', 'none', '已取消']});
 
       } catch (error) {
         console.error('Failed to fetch customer orders:', error);
