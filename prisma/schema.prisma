@@ -1,0 +1,180 @@
+// This is your Prisma schema file
+// Based on the Google Sheets structure from const.js
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // Change to "mysql" or "sqlite" if needed
+  url      = env("DATABASE_URL")
+}
+
+// ==================== USERS ====================
+// Based on sheet_user
+model User {
+  id        String   @id @default(cuid())
+  phone     String   @unique // 電話
+  wechatId  String?  // 微信ID(可以找到人)
+  name      String   // 名字
+  nameEn    String?  // 收件人名字(英文)
+  address   String?  // 地址(自提填123)
+  email     String?  @unique // Email
+  
+  orders    Order[]  // Relation to orders
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("users")
+}
+
+// ==================== PRODUCTS ====================
+// Based on sheet_products
+model Product {
+  id            String   @id @default(cuid())
+  brand         String?  // Brand
+  productName   String   // 商品名称
+  specification String?  // 规格
+  inventory     Int      @default(0) // Inventory
+  picture       String?  // Picture URL
+  barcode       String?  @unique // Barcode
+  
+  basePrice     Float    @default(0) // Add pricing
+  active        Boolean  @default(true)
+  category      String?  // Add category
+  
+  orderItems    OrderItem[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([productName])
+  @@index([barcode])
+  @@map("products")
+}
+
+// ==================== ORDERS ====================
+// Based on sheet_orders
+model Order {
+  id                String   @id @default(cuid())
+  orderId           String   @unique // OrderId - unique identifier from sheets
+  
+  // User information
+  userId            String?
+  user              User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  phone             String   // 電話
+  
+  // Order details
+  wordChain         String?  // 接龍
+  paymentStatus     String?  // 通知付款狀態
+  remarks           String?  @db.Text // 备注
+  orderTime         DateTime // 下单时间
+  
+  // Costs
+  shippingCost      Float    @default(0) // 运费
+  totalOrderAmount  Float    // 订单总金额
+  
+  // Status fields
+  paidStatus        String   @default("pending") // 付款情況
+  packingStatus     String   @default("pending") // 裝箱情況
+  shippingStatus    String   @default("pending") // 發貨狀態
+  
+  // Delivery
+  address           String?  @db.Text // 地址(自提填123)
+  shipping1         String?  // Shipping1
+  shipping2         String?  // Shipping2
+  
+  // Flags
+  fulfillable       Boolean  @default(true) // Fulfillable
+  
+  // Payment
+  paymentId         String?  // From payment processor
+  
+  // Relations
+  orderItems        OrderItem[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([orderId])
+  @@index([phone])
+  @@index([paidStatus])
+  @@index([shippingStatus])
+  @@index([orderTime])
+  @@map("orders")
+}
+
+// ==================== ORDER ITEMS ====================
+// Based on sheet_orderItems
+model OrderItem {
+  id                  String   @id @default(cuid())
+  
+  // Product reference
+  productId           String
+  product             Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  // Order reference
+  orderId             String
+  order               Order    @relation(fields: [orderId], references: [orderId], onDelete: Cascade)
+  
+  // Item details
+  brand               String?  // Brand
+  productName         String   // 商品名称
+  specification       String?  // 规格
+  quantity            Int      // 数量
+  totalProductAmount  Float    // 商品总金额
+  priceAtPurchase     Float    // Price when purchased (calculated)
+  
+  // Status tracking
+  packed              Boolean  @default(false) // Packed
+  delivered           Boolean  @default(false) // Delivered
+  fulfillable         Boolean  @default(true)  // Fulfillable
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+// ==================== SYNC LOG ====================
+// Track synchronization with Google Sheets Master
+model SyncLog {
+  id            String   @id @default(cuid())
+  sheetName     String   // e.g., "Master"
+  syncType      String   // "FULL", "INCREMENTAL", "MANUAL"
+  status        String   // "SUCCESS", "FAILED", "PARTIAL"
+  recordsAdded  Int      @default(0)
+  recordsUpdated Int     @default(0)
+  recordsFailed Int      @default(0)
+  errorMessage  String?  @db.Text
+  startedAt     DateTime
+  completedAt   DateTime?
+  
+  createdAt     DateTime @default(now())
+  
+  @@index([sheetName])
+  @@index([syncType])
+  @@index([status])
+  @@map("sync_logs")
+}
+
+// ==================== PAYMENT LINKS ====================
+// Track generated payment links
+model PaymentLink {
+  id            String   @id @default(cuid())
+  orderId       String   @unique
+  token         String   @unique
+  customerEmail String
+  customerName  String?
+  expiresAt     DateTime
+  usedAt        DateTime?
+  
+  createdAt     DateTime @default(now())
+  
+  @@index([token])
+  @@index([orderId])
+  @@map("payment_links")
+}

@@ -1,11 +1,11 @@
+// src/pages/api/payment/process.js - Updated to use Prisma
 import { AlphaPayProcessor } from '../../../lib/alphapay';
-import { SheetsManager } from '../../../lib/sheets';
+import { DatabaseManager } from '../../../lib/dbManager';
 import { EmailService } from '../../../lib/email';
 import { verifyToken } from '../../../lib/jwt';
 import { InputValidator } from '../../../lib/validators';
-import { withAPIAuth } from '../../../lib/middleware/apiAuth';
 
-async function handler(req, res) {
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -43,15 +43,32 @@ async function handler(req, res) {
     // Process payment
     const paymentResult = await AlphaPayProcessor.processPayment(paymentData);
 
-    // Update order status
-    await SheetsManager.updateOrderStatus(
+    // Update order status in database
+    await DatabaseManager.updateOrderStatus(
       paymentData.orderId,
-      'paid',
+      '已付款',
       paymentResult.paymentId
     );
 
+    // Mark payment link as used
+    await DatabaseManager.markPaymentLinkUsed(token);
+
     // Get order details for email
-    const orderData = await SheetsManager.fetchOrderDetails(paymentData.orderId);
+    const order = await DatabaseManager.getOrderByOrderId(paymentData.orderId);
+
+    // Format order data for email
+    const orderData = {
+      orderId: order.orderId,
+      customerName: order.user?.name || 'Guest',
+      customerEmail: order.user?.email || paymentData.email,
+      items: order.orderItems.map(item => ({
+        name: item.productName,
+        specification: item.specification,
+        price: item.priceAtPurchase,
+        quantity: item.quantity,
+      })),
+      total: order.totalOrderAmount,
+    };
 
     // Send confirmation email
     await EmailService.sendConfirmationEmail(orderData, paymentResult);
@@ -63,6 +80,3 @@ async function handler(req, res) {
     res.status(500).json({ error: error.message });
   }
 }
-
-// Apply authentication middleware (requires 'write' permission)
-export default withAPIAuth(['write'])(handler);

@@ -1,5 +1,6 @@
-import { CustomerAuthManager } from '../../../lib/customerAuth';
-import { CustomerOrderManager } from '../../../lib/orderManager';
+// src/pages/api/customer/orders.js - Updated to use Prisma
+import { DatabaseManager } from '../../../lib/dbManager';
+import { verifyToken } from '../../../lib/customerAuth';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -7,49 +8,54 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Extract token from Authorization header
     const token = req.headers.authorization?.replace('Bearer ', '');
     
     if (!token) {
-      return res.status(401).json({ 
-        error: 'Token required',
-        message: 'Please provide a valid customer portal token'
-      });
+      return res.status(401).json({ error: 'No token provided' });
     }
 
-    // Verify token
-    const verification = await CustomerAuthManager.verifyCustomerToken(token);
-    
-    if (!verification.valid) {
-      return res.status(401).json({ 
-        error: 'Invalid token',
-        message: verification.error
-      });
+    const tokenValidation = await verifyToken(token);
+    if (!tokenValidation.valid) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
     }
 
-    // Get customer's unpaid orders
-    const orders = await CustomerOrderManager.getCustomerUnpaidOrders(
-      verification.payload.customerEmail
-    );
+    const { phone, email } = tokenValidation.payload;
 
-    // Calculate grand total
-    const grandTotal = CustomerOrderManager.calculateGrandTotal(orders);
+    // Get unpaid orders from database
+    const orders = await DatabaseManager.getUnpaidOrders(phone, email);
+
+    // Calculate totals
+    const totalAmount = orders.reduce((sum, order) => sum + order.totalOrderAmount, 0);
+
+    // Format response
+    const formattedOrders = orders.map(order => ({
+      orderId: order.orderId,
+      items: order.orderItems.map(item => ({
+        name: item.productName,
+        specification: item.specification,
+        quantity: item.quantity,
+        price: item.priceAtPurchase,
+        total: item.totalProductAmount,
+      })),
+      total: order.totalOrderAmount,
+      status: order.paidStatus,
+      shippingStatus: order.shippingStatus,
+      packingStatus: order.packingStatus,
+      createdAt: order.orderTime,
+      address: order.address,
+    }));
 
     res.status(200).json({
-      success: true,
-      customer: {
-        email: verification.payload.customerEmail,
-        name: verification.payload.customerName
-      },
-      orders: orders,
-      summary: {
-        totalOrders: orders.length,
-        grandTotal: grandTotal
-      }
+      customerName: orders[0]?.user?.name || 'Guest',
+      customerPhone: phone,
+      customerEmail: email,
+      total: totalAmount,
+      unpaidOrders: formattedOrders.length,
+      orders: formattedOrders,
     });
 
   } catch (error) {
-    console.error('Get customer orders error:', error);
+    console.error('API Error:', error);
     res.status(500).json({ error: error.message });
   }
 }

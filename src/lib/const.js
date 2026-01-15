@@ -133,8 +133,35 @@ export const sheet_user = {
   RECIPIENT_NAME_EN: '收件人名字(英文)',
   ADDRESS: '地址(自提填123)',
   EMAIL: 'Email',
-  WEIGHT_KG: 'Weight (kg)',
-  DIMENSIONS: 'Dimensions (LxWxH)',
-  LABEL_URL: 'Label URL',
-  GENERATE_LABEL: 'Generate Label'
 };
+
+export const sheet_orders = {
+  ID: 'ID',
+  PHONE: '電話',
+  WORD_CHAIN: '接龍',
+  PAYMENT_STATUS: '通知付款狀態',
+  REMARKS: '备注',
+  ORDER_TIME: '下单时间',
+  SHIPPING_COST: '运费',
+  TOTAL_ORDER_AMOUNT: '订单总金额',
+  PAID_STATUS: '付款情況',
+  PACKING_STATUS: '裝箱情況',
+  SHIPPING_STATUS: '發貨狀態',
+  ADDRESS: '地址(自提填123)',
+  SHIPPING1: 'Shipping1',
+  SHIPPING2: 'Shipping2',
+  FULFILLABLE: 'Fulfillable'
+}
+
+export const sheet_orderItems = {
+  ID: 'ID',
+  BRAND: 'Brand',
+  PRODUCT_NAME: '商品名称',
+  SPECIFICATION: '规格',
+  QUANTITY: '数量',
+  TOTAL_PRODUCT_AMOUNT: '商品总金额',
+  ORDER_ID: 'OrderId',
+  PACKED: 'Packed',
+  DELIVERED: 'Delivered',
+  FULFILLABLE: 'Fulfillable'
+}

@@ -1,3 +1,4 @@
+// DEPRICATED - Use DB integration instead
 // ===========================
 // Updated src/lib/sheets.js - Add updatePaymentStatus method
 // ===========================
@@ -343,6 +344,38 @@ export class SheetsManager {
       } catch (error) {
         console.error('Failed to fetch customer orders:', error);
         throw new Error('Unable to retrieve customer orders');
+      }
+    }
+
+    /**
+     * Fetch all orders from Google Sheets for syncing
+     * Returns array of { orderId, rowIndex } objects
+     */
+    static async fetchAllOrders() {
+      try {
+        const {dataRows, colIndex} = await this.getSheetsData('Master!A:Z');
+        const orders = [];
+        
+        dataRows.forEach((row, index) => {
+          const orderId = row[colIndex[sheet_master.ORDER_ID]]?.trim();
+          if (orderId) {
+            orders.push({
+              orderId,
+              rowIndex: index + 2, // +2 because: +1 for header row, +1 for 1-indexed sheets
+              customerName: row[colIndex[sheet_master.NAME]]?.trim() || '',
+              customerEmail: row[colIndex[sheet_master.EMAIL]]?.trim() || '',
+              customerPhone: row[colIndex[sheet_master.PHONE]]?.trim() || '',
+              total: parseFloat(row[colIndex[sheet_master.TOTAL_ORDER_AMOUNT]]) || 0,
+              status: row[colIndex[sheet_master.PAID_STATUS]]?.trim() || 'pending',
+              paymentId: row[colIndex[sheet_master.PAYMENT_ID]]?.trim() || null,
+            });
+          }
+        });
+        
+        return orders;
+      } catch (error) {
+        console.error('Failed to fetch all orders:', error);
+        throw new Error('Unable to retrieve orders list');
       }
     }
 }

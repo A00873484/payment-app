@@ -1,77 +1,214 @@
 # Order Payment Processing App
 
-A secure Next.js application for processing order payments with Google Sheets integration and AlphaPay payment processing.
+A secure Next.js application for processing order payments with **Prisma database** and Google Sheets integration for data entry.
 
 ## 🚀 Features
 
+- **Prisma Database**: Fast, reliable data storage with PostgreSQL/MySQL/SQLite
+- **Google Sheets Integration**: Master sheet for data entry, syncs to database
 - **JWT Token Authentication**: Secure tokenized payment links
-- **Google Sheets Integration**: Order data retrieval and status updates
 - **AlphaPay Payment Processing**: Secure payment handling
 - **Email Notifications**: Automated confirmation emails
+- **Customer Portal**: Phone-based authentication for customers
+- **Admin Dashboard**: NextAuth with Google OAuth
 - **Input Validation**: Comprehensive validation with Validator.js
 - **Responsive Design**: Mobile-friendly Tailwind CSS interface
-- **Real-time Form Validation**: Live validation with error messaging
-- **Security**: XSS protection and input sanitization
+- **Real-time Updates**: Fast database queries
+- **Product Catalog**: Centralized product management with inventory
+- **Analytics**: Sales reports and order statistics
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: Next.js 14, React 18, Tailwind CSS
+- **Frontend**: Next.js 15, React 19, Tailwind CSS 4
 - **Backend**: Next.js API Routes
-- **Authentication**: JWT (jose library)
+- **Database**: Prisma ORM with PostgreSQL/MySQL/SQLite
+- **Authentication**: JWT (jose library), NextAuth.js
 - **Validation**: Validator.js
 - **Payment Processing**: AlphaPay integration
 - **Email Service**: Nodemailer
-- **Google Sheets**: Google APIs
+- **Data Entry**: Google Sheets (Master sheet)
 
-## 📦 Installation
+## 📦 Quick Start
 
-1. **Clone and install dependencies**:
-   ```bash
-   git clone <repository-url>
-   cd order-payment-app
-   npm install
-   ```
+### 1. Clone and Install
+```bash
+git clone <repository-url>
+cd payment-app
+npm install
+```
 
-2. **Environment Configuration**:
-   Create a `.env.local` file with:
-   ```env
-   GOOGLE_SHEETS_API_KEY=your_google_sheets_api_key
-   SPREADSHEET_ID=your_spreadsheet_id
-   ALPHAPAY_SECRET_KEY=your_alphapay_secret_key
-   NEXT_PUBLIC_ALPHAPAY_PUBLIC_KEY=your_alphapay_public_key
-   JWT_SECRET=your_jwt_secret_key
-   EMAIL_SERVICE_API_KEY=your_email_service_api_key
-   EMAIL_SERVICE_ENDPOINT=your_email_service_endpoint
-   NEXT_PUBLIC_BASE_URL=http://localhost:3000
-   ```
+### 2. Setup Database
 
-   Setup your `src/lib/api-project.json` file 
-   
-   1. Go to the Google Cloud Console 
-      https://console.cloud.google.com/
-   2. Create a new project (or select an existing one).
-   3. In the left sidebar, go to:
-      IAM & Admin → Service Accounts
-   4. Click “+ CREATE SERVICE ACCOUNT”
-   5. Name it something like “payment-app-server”
-   6. Click Create and Continue (you can skip granting roles).
-   7. Click Done
-   8. Click on your newly created service account.
-   9. Go to the “Keys” tab → click “Add Key” → “Create new key” → JSON.
-   10. It will download a JSON file — this is your private key (keep it secret).
+**Choose your database:**
 
-3. **Run the development server**:
-   ```bash
-   npm run dev
-   ```
+**PostgreSQL (Recommended):**
+```bash
+# Install PostgreSQL, then:
+createdb payment_app
+```
+
+**SQLite (Quick Start):**
+```bash
+# Update prisma/schema.prisma:
+# Change provider = "postgresql" to provider = "sqlite"
+```
+
+**MySQL:**
+```bash
+# Install MySQL, then:
+mysql -u root -p -e "CREATE DATABASE payment_app;"
+```
+
+### 3. Configure Environment
+
+```bash
+cp .env.example .env.local
+```
+
+Edit `.env.local`:
+```env
+# Database - Choose ONE:
+DATABASE_URL="postgresql://username:password@localhost:5432/payment_app?schema=public"
+# DATABASE_URL="mysql://username:password@localhost:3306/payment_app"
+# DATABASE_URL="file:./dev.db"
+
+# Google Sheets (for Master sheet sync)
+GOOGLE_SHEETS_API_KEY=your_api_key
+SPREADSHEET_ID=your_spreadsheet_id
+
+# AlphaPay
+ALPHAPAY_SECRET_KEY=your_secret
+NEXT_PUBLIC_ALPHAPAY_PUBLIC_KEY=your_public_key
+
+# JWT & NextAuth
+JWT_SECRET=your_jwt_secret_min_32_chars
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your_nextauth_secret
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+
+# Email
+EMAIL_SERVICE_API_KEY=your_email_api_key
+EMAIL_SERVICE_ENDPOINT=your_email_endpoint
+
+# App
+NEXT_PUBLIC_BASE_URL=http://localhost:3000
+```
+
+### 4. Setup Database Tables
+
+```bash
+npm run db:push
+```
+
+### 5. Seed Sample Data (Optional)
+
+```bash
+npm run db:seed
+```
+
+### 6. Start Development Server
+
+```bash
+npm run dev
+```
+
+Visit: http://localhost:3000
+
+### 7. View Database
+
+```bash
+npm run db:studio
+```
+
+Opens Prisma Studio at http://localhost:5555
+
+## 🗄️ Database Schema
+
+```
+Users (from sheet_user)
+  ├─ phone (unique)
+  ├─ email (unique)
+  ├─ name
+  ├─ wechatId
+  └─ orders[]
+
+Products (from sheet_products)
+  ├─ productName
+  ├─ brand
+  ├─ specification
+  ├─ inventory
+  ├─ basePrice
+  ├─ barcode (unique)
+  └─ orderItems[]
+
+Orders (from sheet_orders + master)
+  ├─ orderId (unique, your custom ID)
+  ├─ userId
+  ├─ phone
+  ├─ totalOrderAmount
+  ├─ paidStatus
+  ├─ shippingStatus
+  ├─ packingStatus
+  └─ orderItems[]
+
+OrderItems (from sheet_orderItems + master)
+  ├─ orderId
+  ├─ productId
+  ├─ productName
+  ├─ quantity
+  ├─ priceAtPurchase
+  └─ totalProductAmount
+
+PaymentLinks (new!)
+  ├─ orderId
+  ├─ token
+  ├─ expiresAt
+  └─ usedAt
+
+SyncLogs (new!)
+  ├─ sheetName
+  ├─ recordsAdded
+  ├─ recordsUpdated
+  └─ status
+```
+
+## 🔄 Google Sheets Integration
+
+### Master Sheet → Database Sync
+
+Your team continues using Google Sheets for data entry. The app syncs to database:
+
+**Manual Sync via API:**
+```bash
+curl -X POST http://localhost:3000/api/sync/master \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN"
+```
+
+**Or programmatically:**
+```javascript
+import { SyncService } from './src/lib/syncService.js';
+await SyncService.syncMasterToDatabase();
+```
+
+**Sync single order:**
+```javascript
+await SyncService.syncSingleOrder('ORD-12345');
+```
 
 ## 🔧 Usage
 
-### 1. Generate Payment Links
+### 1. Data Entry in Google Sheets
 
-Use the API endpoint to generate secure payment links:
+Your team enters orders in the Master sheet as usual.
 
-```javascript
+### 2. Sync to Database
+
+Run sync (manual or scheduled) to import orders into database.
+
+### 3. Generate Payment Links
+
+```bash
 POST /api/generate-payment-link
 {
   "orderId": "ORD-12345",
@@ -79,11 +216,9 @@ POST /api/generate-payment-link
 }
 ```
 
-### 2. Send Payment Emails
+### 4. Send Payment Emails
 
-Send payment notification emails:
-
-```javascript
+```bash
 POST /api/send-payment-email
 {
   "customerEmail": "customer@example.com",
@@ -94,108 +229,199 @@ POST /api/send-payment-email
 }
 ```
 
-### 3. Payment Processing Flow
+### 5. Customer Portal
 
-1. User receives email with "Pay Now" button
-2. Clicks link to access payment page
-3. JWT token is validated
-4. Order details are fetched from Google Sheets
-5. User completes payment form
-6. Payment is processed via AlphaPay
-7. Order status is updated in Google Sheets
-8. Confirmation email is sent
+Customers access their orders via phone authentication:
+```
+https://yourapp.com/customer/portal
+```
+
+### 6. Payment Processing Flow
+
+1. Customer receives email with payment link
+2. Clicks link → validates JWT token
+3. Order details fetched from **database** (fast!)
+4. Completes payment form
+5. Payment processed via AlphaPay
+6. Database updated immediately
+7. Confirmation email sent
 
 ## 🏗️ Project Structure
 
 ```
-src/
-├── components/           # React components
-│   ├── LoadingSpinner.js
-│   ├── ErrorMessage.js
-│   ├── OrderDetails.js
-│   ├── PaymentForm.js
-│   └── PaymentSuccess.js
-├── lib/                  # Utility libraries
-│   ├── config.js        # Configuration
-│   ├── validators.js    # Input validation
-│   ├── jwt.js          # JWT handling
-│   ├── sheets.js       # Google Sheets API
-│   ├── alphapay.js     # AlphaPay integration
-│   └── email.js        # Email service
-├── pages/
-│   ├── api/            # API routes
-│   │   ├── orders/[orderId].js
-│   │   ├── payment/process.js
-│   │   ├── generate-payment-link.js
-│   │   └── send-payment-email.js
-│   ├── _app.js
-│   ├── _document.js
-│   ├── index.js
-│   └── payment.js      # Main payment page
-└── styles/
-    └── globals.css     # Global styles
+payment-app/
+├── prisma/
+│   ├── schema.prisma          # Database schema
+│   └── seed.js                # Sample data
+├── src/
+│   ├── components/            # React components
+│   │   ├── LoadingSpinner.js
+│   │   ├── ErrorMessage.js
+│   │   ├── OrderDetails.js
+│   │   ├── PaymentForm.js
+│   │   └── PaymentSuccess.js
+│   ├── lib/                   # Core logic
+│   │   ├── db.js             # Prisma client
+│   │   ├── dbManager.js      # Database operations
+│   │   ├── syncService.js    # Sheets → DB sync
+│   │   ├── sheets.js         # Google Sheets API
+│   │   ├── validators.js     # Input validation
+│   │   ├── jwt.js           # JWT handling
+│   │   ├── alphapay.js      # Payment processing
+│   │   ├── email.js         # Email service
+│   │   └── const.js         # Constants/column mappings
+│   ├── pages/
+│   │   ├── api/             # API routes
+│   │   │   ├── orders/[orderId].js
+│   │   │   ├── payment/process.js
+│   │   │   ├── sync/master.js      # NEW: Sync endpoint
+│   │   │   ├── customer/orders.js
+│   │   │   └── ...
+│   │   ├── admin/           # Admin pages
+│   │   ├── customer/        # Customer portal
+│   │   ├── payment.js       # Payment page
+│   │   └── index.js
+│   └── styles/
+│       └── globals.css
+├── docs/                     # Documentation
+│   ├── QUICK_START.md       # Fast setup guide
+│   ├── PRISMA_SETUP.md      # Detailed setup
+│   └── WHATS_DIFFERENT.md   # Migration guide
+└── .env.local               # Configuration
 ```
 
 ## 🔐 Security Features
 
-- **JWT Token Validation**: Secure, time-limited payment links
-- **Input Sanitization**: XSS protection using Validator.js
-- **Server-side Validation**: Comprehensive API validation
-- **HTTPS Enforcement**: SSL/TLS encryption
-- **Rate Limiting**: (Implement as needed)
-
-## 📧 Email Integration
-
-The app supports multiple email service providers:
-- Nodemailer for SMTP services
-- SendGrid, Mailgun, or other REST APIs
-- Custom email templates with order details
+- JWT Token Validation for payment links
+- Input Sanitization with Validator.js
+- Server-side Validation on all endpoints
+- HTTPS/TLS encryption
+- NextAuth for admin authentication
+- Rate limiting ready
+- SQL injection prevention (Prisma)
 
 ## 💳 Payment Flow
 
-1. **Token Generation**: JWT tokens with order information
-2. **Validation**: Server-side token verification
-3. **Order Retrieval**: Fetch order details from Google Sheets
-4. **Payment Processing**: Secure AlphaPay integration
-5. **Status Update**: Update Google Sheets with payment status
-6. **Confirmation**: Send email confirmation with pickup instructions
+1. **Order Creation**: Entered in Master sheet
+2. **Sync**: Imported to database
+3. **Link Generation**: JWT tokens with order info
+4. **Validation**: Server-side token verification
+5. **Payment**: Secure AlphaPay integration
+6. **Update**: Database updated immediately
+7. **Confirmation**: Email sent to customer
+
+## 📊 Database Operations
+
+### Query Examples
+
+```javascript
+import { DatabaseManager } from './src/lib/dbManager.js';
+
+// Get order with items and product details
+const order = await DatabaseManager.getOrderByOrderId('ORD-123');
+
+// Get customer's unpaid orders
+const orders = await DatabaseManager.getUnpaidOrders('555-0100');
+
+// Update order status
+await DatabaseManager.updateOrderStatus('ORD-123', '已付款', 'PAY-123');
+
+// Get sales report
+const report = await DatabaseManager.getProductSalesReport();
+
+// Get statistics
+const stats = await DatabaseManager.getOrderStatistics();
+```
 
 ## 🚀 Deployment
 
 ### Vercel (Recommended)
+
 ```bash
-npm run build
+# Add DATABASE_URL to Vercel environment variables
+# Then deploy:
 vercel --prod
 ```
 
-### Other Platforms
+### Railway / Render / Fly.io
+
+1. Add database (PostgreSQL)
+2. Set environment variables
+3. Run migrations: `npx prisma migrate deploy`
+4. Deploy app
+
+## 🛠️ Commands
+
 ```bash
-npm run build
-npm start
+# Development
+npm run dev                  # Start dev server
+npm run build               # Build for production
+npm start                   # Start production server
+
+# Database
+npm run db:generate         # Generate Prisma Client
+npm run db:push            # Push schema changes (dev)
+npm run db:migrate         # Create migrations (prod)
+npm run db:studio          # Open database browser
+npm run db:seed            # Seed sample data
+
+# Sync
+# Via API: POST /api/sync/master
 ```
+
+## 📚 Documentation
+
+- **[Quick Start](docs/QUICK_START.md)** - Get running in 5 minutes
+- **[Prisma Setup](docs/PRISMA_SETUP.md)** - Detailed database setup
+- **[What's Different](docs/WHATS_DIFFERENT.md)** - Sheets vs Database comparison
 
 ## 🧪 Testing
 
 Replace mock implementations in production:
-- `SheetsManager.fetchOrderDetails()` - Implement actual Google Sheets API calls
-- `AlphaPayProcessor.processPayment()` - Connect to real AlphaPay API
-- `EmailService.sendConfirmationEmail()` - Configure with your email provider
+- ✅ DatabaseManager - Already connected to real DB
+- ✅ AlphaPayProcessor - Connect to real AlphaPay API
+- ✅ EmailService - Configure with your email provider
+
+## 🐛 Troubleshooting
+
+### Database Issues
+```bash
+# Check connection
+npm run db:studio
+
+# Reset database
+npm run db:push -- --force-reset
+npm run db:seed
+```
+
+### Sync Issues
+- Check Google Sheets credentials in `.env.local`
+- Verify spreadsheet ID is correct
+- Check column names match `const.js`
+
+### Common Errors
+- "DATABASE_URL not found" → Check `.env.local`
+- "Can't reach database" → Check if DB is running
+- Prisma errors → Run `npm run db:generate`
 
 ## 📝 License
 
-MIT License - see LICENSE file for details
+MIT License
 
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+3. Make changes
+4. Test thoroughly
+5. Submit pull request
 
 ## 📞 Support
 
-For support and questions:
-- Create an issue in the repository
-- Check the documentation
-- Review the code comments for implementation details
+- Check documentation in `docs/`
+- Review code comments
+- Open an issue on GitHub
+
+---
+
+**New to this project?** Start with [`docs/QUICK_START.md`](docs/QUICK_START.md)
