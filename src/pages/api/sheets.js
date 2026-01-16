@@ -1,10 +1,7 @@
 import { google } from 'googleapis';
-import credentials from "./api-project.json" assert { type: "json" };
-
 export default async function handler(req, res) {
-  
+
   const auth = new google.auth.GoogleAuth({
-    credentials,
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   });
 

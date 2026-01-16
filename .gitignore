@@ -41,4 +41,4 @@ yarn-error.log*
 next-env.d.ts
 
 # Google API credentials
-/src/lib/api-project.json
+/api-project.json
