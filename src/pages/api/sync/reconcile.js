@@ -1,6 +1,6 @@
 // src/pages/api/sync/reconcile.js - Check database vs Master sheet consistency
 import { SyncManager } from '../../../lib/syncManager';
-import { apiAuth } from '../../../lib/middleware/apiAuth';
+import { withAPIAuth } from '../../../lib/middleware/apiAuth';
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -26,4 +26,4 @@ async function handler(req, res) {
   }
 }
 
-export default apiAuth(handler);
+export default withAPIAuth(handler);

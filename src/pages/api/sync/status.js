@@ -1,6 +1,6 @@
 // src/pages/api/sync/status.js - Get sync statistics
 import { DatabaseManager } from '../../../lib/dbManager';
-import { apiAuth } from '../../../lib/middleware/apiAuth';
+import { withAPIAuth } from '../../../lib/middleware/apiAuth';
 
 async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -44,4 +44,4 @@ async function handler(req, res) {
   }
 }
 
-export default apiAuth(handler);
+export default withAPIAuth(handler);

@@ -1,6 +1,6 @@
 import { MasterSheetWriter } from '../../../lib/masterSheetWriter';
 import { DatabaseManager } from '../../../lib/dbManager';
-import { apiAuth } from '../../../lib/middleware/apiAuth';
+import { withAPIAuth } from '../../../lib/middleware/apiAuth';
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -56,4 +56,4 @@ async function handler(req, res) {
   }
 }
 
-export default apiAuth(handler);
+export default withAPIAuth(handler);

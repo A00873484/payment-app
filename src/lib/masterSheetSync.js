@@ -3,10 +3,8 @@ import { google } from 'googleapis';
 import { DatabaseManager } from './dbManager.js';
 import { sheet_master } from './const.js';
 import { config } from './config.js';
-import credentials from './api-project.json' assert { type: 'json' };
 
 const auth = new google.auth.GoogleAuth({
-  credentials,
   scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 
@@ -67,6 +65,8 @@ export class MasterSheetSync {
       const productsMap = new Map();
 
       // Parse all rows
+      let currentOrderId = null; // Track current order for continuation rows
+      
       for (let i = 0; i < filledData.length; i++) {
         const row = filledData[i];
 
@@ -74,84 +74,97 @@ export class MasterSheetSync {
           // Parse row data
           const parsedData = this.parseMasterRow(row, colIndex);
 
-          // Skip if no essential data
-          if (!parsedData.phone || !parsedData.orderId) {
-            console.log(`⏭️  Skipping row ${i + 2}: Missing phone or orderId`);
-            continue;
-          }
+          // Check if this row has an orderId (start of new order or continuation)
+          const rowOrderId = parsedData.orderId;
+          
+          // If row has orderId, it's a new order
+          if (rowOrderId) {
+            currentOrderId = rowOrderId;
+            
+            const { phone } = parsedData;
 
-          const { phone, orderId } = parsedData;
+            // Skip if no phone
+            if (!phone) {
+              console.log(`⏭️  Skipping row ${i + 2}: Missing phone`);
+              currentOrderId = null;
+              continue;
+            }
 
-          // Collect user info
-          if (!usersMap.has(phone)) {
-            usersMap.set(phone, {
-              phone,
-              name: parsedData.name,
-              wechatId: parsedData.wechatId,
-              nameEn: parsedData.nameEn,
-              address: parsedData.address,
-              email: parsedData.email,
-            });
-          }
+            // Collect user info
+            if (!usersMap.has(phone)) {
+              usersMap.set(phone, {
+                phone,
+                name: parsedData.name,
+                wechatId: parsedData.wechatId,
+                nameEn: parsedData.nameEn,
+                address: parsedData.address,
+                email: parsedData.email,
+              });
+            }
 
-          // Update user address/email if newer data available
-          if (parsedData.address || parsedData.email) {
-            const user = usersMap.get(phone);
-            if (parsedData.address) user.address = parsedData.address;
-            if (parsedData.email) user.email = parsedData.email;
-          }
+            // Update user address/email if newer data available
+            if (parsedData.address || parsedData.email) {
+              const user = usersMap.get(phone);
+              if (parsedData.address) user.address = parsedData.address;
+              if (parsedData.email) user.email = parsedData.email;
+            }
 
-          // Collect product info (skip shipping items)
-          const category = parsedData.category;
-          if (parsedData.productName && category !== 'Shipping') {
-            const productKey = `${parsedData.productName}|${parsedData.specification || ''}`;
-            if (!productsMap.has(productKey)) {
-              productsMap.set(productKey, {
-                brand: category,
-                productName: parsedData.productName,
-                specification: parsedData.specification,
-                category: category,
-                basePrice: parsedData.quantity > 0 
-                  ? parsedData.price / parsedData.quantity 
-                  : 0,
+            // Collect order info (only if new order)
+            if (!ordersMap.has(currentOrderId)) {
+              ordersMap.set(currentOrderId, {
+                orderId: currentOrderId,
+                phone,
+                orderTime: parsedData.orderTime,
+                wordChain: parsedData.wordChain,
+                paymentStatus: parsedData.paymentStatus,
+                remarks: parsedData.remarks,
+                shippingCost: parsedData.shippingCost,
+                totalOrderAmount: parsedData.totalOrderAmount,
+                paidStatus: parsedData.paidStatus,
+                packingStatus: parsedData.packingStatus,
+                shippingStatus: parsedData.shippingStatus,
+                address: parsedData.address,
+                fulfillable: parsedData.fulfillable,
+                items: [],
               });
             }
           }
 
-          // Collect order info
-          if (!ordersMap.has(orderId)) {
-            ordersMap.set(orderId, {
-              orderId,
-              phone,
-              orderTime: parsedData.orderTime,
-              wordChain: parsedData.wordChain,
-              paymentStatus: parsedData.paymentStatus,
-              remarks: parsedData.remarks,
-              shippingCost: parsedData.shippingCost,
-              totalOrderAmount: parsedData.totalOrderAmount,
-              paidStatus: parsedData.paidStatus,
-              packingStatus: parsedData.packingStatus,
-              shippingStatus: parsedData.shippingStatus,
-              address: parsedData.address,
-              fulfillable: parsedData.fulfillable,
-              items: [],
-            });
-          }
+          // Add item to current order (whether new row or continuation)
+          if (currentOrderId) {
+            const order = ordersMap.get(currentOrderId);
+            const category = parsedData.category;
+            const productName = parsedData.productName;
 
-          const order = ordersMap.get(orderId);
+            // Collect product info (skip shipping items)
+            if (productName && category && category !== 'Shipping') {
+              const productKey = `${productName}|${parsedData.specification || ''}`;
+              if (!productsMap.has(productKey)) {
+                productsMap.set(productKey, {
+                  brand: category,
+                  productName: productName,
+                  specification: parsedData.specification,
+                  category: category,
+                  basePrice: parsedData.quantity > 0 
+                    ? parsedData.price / parsedData.quantity 
+                    : 0,
+                });
+              }
+            }
 
-          // Add item or note shipping info
-          if (category === 'Shipping') {
-            order.shipping1 = parsedData.productName;
-            order.shipping2 = parsedData.specification;
-          } else if (parsedData.productName && parsedData.quantity > 0) {
-            order.items.push({
-              brand: category,
-              productName: parsedData.productName,
-              specification: parsedData.specification,
-              quantity: parsedData.quantity,
-              totalProductAmount: parsedData.price,
-            });
+            // Add item or note shipping info
+            if (category === 'Shipping') {
+              order.shipping1 = productName;
+              order.shipping2 = parsedData.specification;
+            } else if (productName && parsedData.quantity > 0) {
+              order.items.push({
+                brand: category,
+                productName: productName,
+                specification: parsedData.specification,
+                quantity: parsedData.quantity,
+                totalProductAmount: parsedData.price,
+              });
+            }
           }
         } catch (error) {
           console.error(`Failed to parse row ${i + 2}:`, error);

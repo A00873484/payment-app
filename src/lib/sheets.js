@@ -1,4 +1,4 @@
-// DEPRICATED - Use DB integration instead
+// DEPRECATED - Use DB integration instead
 // ===========================
 // Updated src/lib/sheets.js - Add updatePaymentStatus method
 // ===========================
@@ -7,10 +7,7 @@ import { google } from 'googleapis';
 import { sheet_master, sheet_user } from './const.js';
 import { config } from './config.js';
 
-import credentials from "./api-project.json" assert { type: "json" };
-
 const auth = new google.auth.GoogleAuth({
-  credentials,
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
@@ -33,7 +30,6 @@ export class SheetsManager {
     }
 
     const response = await sheets.spreadsheets.values.get({
-      auth: config.googleSheets.apiKey,
       spreadsheetId: config.googleSheets.spreadsheetId,
       range,
     });
@@ -188,7 +184,7 @@ export class SheetsManager {
    * }
    * Returns: Array of customers with their orders
   }*/
-  async processMasterData(filter) {
+  static async processMasterData(filter) {
     const {paidStatusFilter, shippingStatusFilter, packingStatusFilter, email, phone} = filter || {};
     const {dataRows, colIndex} = await this.getSheetsData('Master!A:Z');
       
@@ -241,9 +237,9 @@ export class SheetsManager {
 
           if (
             !customerVerified ||
-            paidStatusFilter.includes(paidStatus) ||
-            shippingStatusFilter.includes(shipStatus) ||
-            packingStatusFilter.includes(packingStatus)
+            paidStatusFilter?.includes(paidStatus) ||
+            shippingStatusFilter?.includes(shipStatus) ||
+            packingStatusFilter?.includes(packingStatus)
           ) {
             skip = true;
             return;
@@ -324,10 +320,14 @@ export class SheetsManager {
             throw new Error('User not found with provided email or phone');
           }
         }
-        return await this.processMasterData({
+        const customers = await this.processMasterData({
            paidStatusFilter: ['弃单', '已付款', 'cash', 'etransfer'],
            shipStatusFilter: ['已發貨', 'Cancelled', 'Canceled'],
-           packingStatusFilter: ['未完成那箱', 'none', '已取消']})[0];
+           packingStatusFilter: ['未完成那箱', 'none', '已取消'],
+           email: customerEmail,
+           phone: customerPhone
+        });
+        return customers[0];
       } catch (error) {
         console.error('Failed to fetch customer orders:', error);
         throw new Error('Unable to retrieve customer orders');

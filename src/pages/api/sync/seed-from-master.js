@@ -1,6 +1,6 @@
 // src/pages/api/sync/seed-from-master.js - Seed database from Master sheet
 import { MasterSheetSync } from '../../../lib/masterSheetSync';
-import { apiAuth } from '../../../lib/middleware/apiAuth';
+import { withAPIAuth } from '../../../lib/middleware/apiAuth';
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -28,4 +28,4 @@ async function handler(req, res) {
 }
 
 // Require authentication for seeding
-export default apiAuth(handler);
+export default withAPIAuth(handler);
