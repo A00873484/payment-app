@@ -1,6 +1,6 @@
 // src/pages/api/customer/orders.js - Updated to use Prisma
 import { DatabaseManager } from '../../../lib/dbManager';
-import { verifyToken } from '../../../lib/customerAuth';
+import { verifyToken } from '../../../lib/jwt';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
