@@ -179,7 +179,18 @@ export default function AdminOrderSearch() {
                         onClick={() => setSelectedCustomer(null)}
                         title={selectedCustomer ? "Click to clear customer filter" : "Click customer name to filter"}
                       >
-                        Customer {selectedCustomer && '✓'}
+                        <span className="flex items-center gap-1">
+                          Customer 
+                          {selectedCustomer ? (
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          ) : (
+                            <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          )}
+                        </span>
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         Contact
@@ -202,7 +213,18 @@ export default function AdminOrderSearch() {
                         onClick={toggleShippingFilter}
                         title={hideCompleted ? "Click to show completed orders" : "Click to hide completed orders"}
                       >
-                        Shipping {hideCompleted && '✓'}
+                        <span className="flex items-center justify-center gap-1">
+                          Shipping 
+                          {hideCompleted ? (
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          ) : (
+                            <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          )}
+                        </span>
                       </th>
                       <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         Action
