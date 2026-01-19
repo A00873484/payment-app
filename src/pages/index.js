@@ -44,7 +44,6 @@ export default function AdminOrderSearch() {
         }
 
         const data = await res.json();
-        console.log(data.results);
         setAllResults(data.results);
         setResults(data.results);
         setSelectedCustomer(null); // Reset customer filter on new search
