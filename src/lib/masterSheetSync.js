@@ -331,7 +331,7 @@ export class MasterSheetSync {
       wechatId: row[colIndex[sheet_master.WECHAT_ID]]?.trim() || null,
       nameEn: row[colIndex[sheet_master.ENGLISH_NAME]]?.trim() || null,
       address: row[colIndex[sheet_master.ADDRESS]]?.trim() || null,
-      email: row[colIndex[sheet_master.EMAIL]]?.trim() || null,
+      email: row[colIndex[sheet_master.EMAIL]]?.trim()?.includes('@') ? row[colIndex[sheet_master.EMAIL]]?.trim() : null,
       
       wordChain: row[colIndex[sheet_master.WORD_CHAIN]]?.trim() || null,
       paymentStatus: row[colIndex[sheet_master.PAYMENT_STATUS]]?.trim() || null,

@@ -83,7 +83,7 @@ export class DatabaseManager {
       });
     } catch (error) {
       console.error('Failed to upsert user:', error);
-      throw new Error('Unable to save user');
+      throw new Error(`Unable to save user: ${error}`);
     }
   }
 
@@ -247,6 +247,32 @@ export class DatabaseManager {
     } catch (error) {
       console.error('Failed to get order:', error);
       throw new Error('Unable to retrieve order');
+    }
+  }
+
+  static async getOrdersByName(name) {
+    try {
+      return await prisma.order.findMany({
+        where: { user: {
+          wechatId: { contains: name, mode: 'insensitive' }
+        } },
+        include: {
+          user: {
+            select: {
+              wechatId: true,
+            },
+          },
+          orderItems: {
+            include: {
+              product: true
+            }
+          }
+        },
+        orderBy: { orderTime: 'desc' }
+      });
+    } catch (error) {
+      console.error('Failed to get orders:', error);
+      throw new Error('Unable to retrieve orders');
     }
   }
 

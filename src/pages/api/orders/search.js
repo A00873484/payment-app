@@ -1,5 +1,4 @@
-import { SheetsManager } from "@/lib/sheets";
-import { sheet_master } from "../../../lib/const";
+import { DatabaseManager } from "../../../lib/dbManager";
 
 export default async function handler(req, res) {
   console.log("Received search request:", req.method, req.query);
@@ -15,26 +14,21 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { dataRows, colIndex } =
-      await SheetsManager.getSheetsData("Master!A:Z");
-
-    const matches = dataRows.filter(row => {
-      const wechatId =
-        row[colIndex[sheet_master.WECHAT_ID]]?.trim().toLowerCase() || "";
-
-      // partial, case-insensitive wechatId match
-      return wechatId.includes(query);
+    const matches = await DatabaseManager.getOrdersByName(query);
+    
+    return res.status(200).json({ results: matches.map(order => ({
+        id: order.id,
+        orderId: order.wordChain,
+        name: order.user.wechatId,
+        endPhone: order.phone.slice(-2),
+        orderItems: order.orderItems,
+        totalOrderAmount: order.totalOrderAmount,
+        orderTime: order.orderTime,
+        paidStatus: order.paidStatus,
+        packingStatus: order.packingStatus,
+        shippingStatus: order.shippingStatus,
+      })) 
     });
-
-    return res.status(200).json({ results: matches.map((row) => ({
-        ORDER_ID: row[colIndex[sheet_master.ORDER_ID]],
-        WECHAT_ID: row[colIndex[sheet_master.WECHAT_ID]],
-        PHONE_END: row[colIndex[sheet_master.PHONE]]?.slice(-2),
-        PAID_STATUS: row[colIndex[sheet_master.PAID_STATUS]],
-        PACKING_STATUS: row[colIndex[sheet_master.PACKING_STATUS]],
-        SHIPPING_STATUS: row[colIndex[sheet_master.SHIPPING_STATUS]],
-        PRODUCTS: row[colIndex[sheet_master.PRODUCT_NAME]],
-      })) });
 
   } catch (err) {
     console.error("Search API Error:", err);
