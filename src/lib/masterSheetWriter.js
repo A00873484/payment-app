@@ -3,10 +3,8 @@ import { google } from 'googleapis';
 import { DatabaseManager } from './dbManager.js';
 import { sheet_master } from './const.js';
 import { config } from './config.js';
-import credentials from './api-project.json' assert { type: 'json' };
 
 const auth = new google.auth.GoogleAuth({
-  credentials,
   scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 

@@ -4,10 +4,8 @@ import { DatabaseManager } from './dbManager.js';
 import { MasterSheetWriter } from './masterSheetWriter.js';
 import { sheet_rawqjl, sheet_rawpt } from './const.js';
 import { config } from './config.js';
-import credentials from './api-project.json' assert { type: 'json' };
 
 const auth = new google.auth.GoogleAuth({
-  credentials,
   scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 
