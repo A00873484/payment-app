@@ -99,7 +99,7 @@
 │  ┌─────────────────────────────────────────────────────────────────┐    │
 │  │                   Business Logic                                │    │
 │  │                                                                 │    │
-│  │  dbManager.js       ← Database operations (CRUD)                │    │
+│  │  dbManager.ts       ← Database operations (CRUD)                │    │
 │  │  syncService.js     ← Sync Master → Database                    │    │
 │  │  jwt.js             ← Token generation/validation               │    │
 │  │  alphapay.js        ← Payment processing                        │    │

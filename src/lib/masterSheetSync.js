@@ -1,6 +1,6 @@
 // src/lib/masterSheetSync.js - Handle Master sheet operations
 import { google } from 'googleapis';
-import { DatabaseManager } from './dbManager.js';
+import { DatabaseManager } from './dbManager.ts';
 import { sheet_master } from './const.js';
 import { config } from './config.js';
 

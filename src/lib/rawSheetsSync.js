@@ -1,6 +1,6 @@
 // src/lib/rawSheetsSync.js - Process Raw-QJL and Raw-PT sheets
 import { google } from 'googleapis';
-import { DatabaseManager } from './dbManager.js';
+import { DatabaseManager } from './dbManager.ts';
 import { MasterSheetWriter } from './masterSheetWriter.js';
 import { sheet_rawqjl, sheet_rawpt } from './const.js';
 import { config } from './config.js';

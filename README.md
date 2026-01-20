@@ -261,8 +261,8 @@ payment-app/
 │   │   ├── PaymentForm.js
 │   │   └── PaymentSuccess.js
 │   ├── lib/                   # Core logic
-│   │   ├── db.js             # Prisma client
-│   │   ├── dbManager.js      # Database operations
+│   │   ├── db.ts             # Prisma client
+│   │   ├── dbManager.ts      # Database operations
 │   │   ├── syncService.js    # Sheets → DB sync
 │   │   ├── sheets.js         # Google Sheets API
 │   │   ├── validators.js     # Input validation
@@ -315,7 +315,7 @@ payment-app/
 ### Query Examples
 
 ```javascript
-import { DatabaseManager } from './src/lib/dbManager.js';
+import { DatabaseManager } from './src/lib/dbManager.ts';
 
 // Get order with items and product details
 const order = await DatabaseManager.getOrderByOrderId('ORD-123');

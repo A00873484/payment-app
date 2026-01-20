@@ -226,7 +226,7 @@ npm run db:studio
 ### Check Sync Logs
 
 ```javascript
-import { DatabaseManager } from './lib/dbManager.js';
+import { DatabaseManager } from './lib/dbManager.ts';
 
 const logs = await DatabaseManager.getRecentSyncLogs(10);
 console.log(logs);
