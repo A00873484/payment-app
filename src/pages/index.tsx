@@ -1,16 +1,40 @@
 import { useState, useEffect } from "react";
 import Head from "next/head";
+import type { SearchResponse, SearchResult, ErrorResponse } from './api/orders/search';
+
+/*interface OrderItem {
+  brand: string;
+  productName: string;
+  specification: string;
+  quantity: number;
+  totalProductAmount: number;
+}
+
+interface Order {
+  id: string;
+  orderId: string;
+  name: string;
+  endPhone: string;
+  orderItems: OrderItem[];
+  totalOrderAmount: number;
+  orderTime: Date;
+  paidStatus: string;
+  packingStatus: string;
+  shippingStatus: string;
+}*/
+
+type StatusType = 'payment' | 'packing' | 'shipping';
 
 export default function AdminOrderSearch() {
-  const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [results, setResults] = useState([]);
-  const [allResults, setAllResults] = useState([]); // Store all search results
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [expandedOrders, setExpandedOrders] = useState(new Set());
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [hideCompleted, setHideCompleted] = useState(false);
+  const [query, setQuery] = useState<string>("");
+  const [debouncedQuery, setDebouncedQuery] = useState<string>("");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [allResults, setAllResults] = useState<SearchResult[]>([]); // Store all search results
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
+  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
+  const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
+  const [hideCompleted, setHideCompleted] = useState<boolean>(false);
 
   // Debounce input (300ms)
   useEffect(() => {
@@ -39,18 +63,18 @@ export default function AdminOrderSearch() {
         );
 
         if (!res.ok) {
-          const data = await res.json();
+          const data: ErrorResponse = await res.json();
           throw new Error(data.error || "Search failed");
         }
 
-        const data = await res.json();
+        const data: SearchResponse = await res.json();
         setAllResults(data.results);
         setResults(data.results);
         setSelectedCustomer(null); // Reset customer filter on new search
         setHideCompleted(false); // Reset shipping filter on new search
       } catch (err) {
         console.error("Search error:", err);
-        setError(err.message);
+        setError(err instanceof Error ? err.message : 'Unknown error');
         setResults([]);
         setAllResults([]);
       } finally {
@@ -82,7 +106,7 @@ export default function AdminOrderSearch() {
     setResults(filtered);
   }, [selectedCustomer, hideCompleted, allResults]);
 
-  const toggleOrder = (orderId) => {
+  const toggleOrder = (orderId: string) => {
     setExpandedOrders(prev => {
       const newSet = new Set(prev);
       if (newSet.has(orderId)) {
@@ -94,7 +118,7 @@ export default function AdminOrderSearch() {
     });
   };
 
-  const handleCustomerClick = (customerName) => {
+  const handleCustomerClick = (customerName: string | null) => {
     if (selectedCustomer === customerName) {
       setSelectedCustomer(null); // Unfilter if clicking the same customer
     } else {
@@ -270,8 +294,13 @@ export default function AdminOrderSearch() {
 }
 
 // Status badge component
-function StatusBadge({ status, type }) {
-  const getStatusColor = (status, type) => {
+interface StatusBadgeProps {
+  status: string;
+  type: StatusType;
+}
+
+function StatusBadge({ status, type }: StatusBadgeProps) {
+  const getStatusColor = (status: string, type: StatusType): string => {
     if (type === 'payment') {
       return status === '未付款' || status === 'Unpaid'
         ? 'bg-red-100 text-red-800'
@@ -298,7 +327,15 @@ function StatusBadge({ status, type }) {
 }
 
 // Table row for each order with expandable order items
-function OrderRow({ order, isExpanded, onToggle, onCustomerClick, isCustomerSelected }) {
+interface OrderRowProps {
+  order: SearchResult;
+  isExpanded: boolean;
+  onToggle: () => void;
+  onCustomerClick: (name: string | null) => void;
+  isCustomerSelected: boolean;
+}
+
+function OrderRow({ order, isExpanded, onToggle, onCustomerClick, isCustomerSelected }: OrderRowProps) {
   const hasItems = order.orderItems && order.orderItems.length > 0;
 
   return (
@@ -371,7 +408,7 @@ function OrderRow({ order, isExpanded, onToggle, onCustomerClick, isCustomerSele
       {/* Expanded Order Items Row */}
       {isExpanded && hasItems && (
         <tr className="bg-gray-50">
-          <td colSpan="9" className="px-4 py-4">
+          <td colSpan={9} className="px-4 py-4">
             <div className="ml-8">
               <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-3">
                 📦 Order Items ({order.orderItems.length})

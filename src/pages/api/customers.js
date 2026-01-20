@@ -1,4 +1,5 @@
 import { CustomerOrderManager } from '../../lib/orderManager';
+import { DatabaseManager } from "../../lib/dbManager";
 
 // pages/api/customers.js
 export default async function handler(req, res) {
@@ -8,7 +9,8 @@ export default async function handler(req, res) {
     try {
         
         // Get customer's unpaid orders
-        const customers = await CustomerOrderManager.getAllCustomersWithUnpaidOrders();
+        const customers = await DatabaseManager.getUnpaidOrders();
+        //const customers = await CustomerOrderManager.getAllCustomersWithUnpaidOrders();
         console.log(customers);
         console.log(customers[0].orders)
         // Calculate grand total

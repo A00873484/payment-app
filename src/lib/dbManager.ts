@@ -1,12 +1,25 @@
 // ===========================
-// src/lib/dbManager.js - Database operations with Prisma
+// src/lib/dbManager.ts - Database operations with Prisma
 // ===========================
-import prisma from './db.js';
+import prisma from './db';
+import type {
+  CreateUserData,
+  CreateProductData,
+  CreateOrderData,
+  CreateOrderItemData,
+  CreatePaymentLinkData,
+  CreateSyncLogData,
+  UpdateSyncLogData,
+  ProductSalesReportItem,
+  OrderStatistics,
+  OrderWithItems
+} from './types/database';
+import type { User, Product, Order, OrderItem, PaymentLink, SyncLog, Prisma } from '@prisma/client';
 
 export class DatabaseManager {
   // ==================== USERS ====================
   
-  static async createUser(userData) {
+  static async createUser(userData: CreateUserData): Promise<User> {
     try {
       return await prisma.user.create({
         data: {
@@ -24,7 +37,7 @@ export class DatabaseManager {
     }
   }
 
-  static async getUserByPhone(phone) {
+  static async getUserByPhone(phone: string): Promise<User | null> {
     try {
       return await prisma.user.findUnique({
         where: { phone },
@@ -45,7 +58,7 @@ export class DatabaseManager {
     }
   }
 
-  static async getUserByEmail(email) {
+  static async getUserByEmail(email: string): Promise<User | null> {
     try {
       return await prisma.user.findUnique({
         where: { email },
@@ -61,7 +74,7 @@ export class DatabaseManager {
     }
   }
 
-  static async upsertUser(userData) {
+  static async upsertUser(userData: CreateUserData): Promise<User> {
     try {
       return await prisma.user.upsert({
         where: { phone: userData.phone },
@@ -89,7 +102,7 @@ export class DatabaseManager {
 
   // ==================== PRODUCTS ====================
   
-  static async createProduct(productData) {
+  static async createProduct(productData: CreateProductData): Promise<Product> {
     try {
       return await prisma.product.create({
         data: {
@@ -110,7 +123,7 @@ export class DatabaseManager {
     }
   }
 
-  static async getProductById(productId) {
+  static async getProductById(productId: string): Promise<Product | null> {
     try {
       return await prisma.product.findUnique({
         where: { id: productId }
@@ -121,7 +134,7 @@ export class DatabaseManager {
     }
   }
 
-  static async getProductByBarcode(barcode) {
+  static async getProductByBarcode(barcode: string): Promise<Product | null> {
     try {
       return await prisma.product.findUnique({
         where: { barcode }
@@ -132,7 +145,7 @@ export class DatabaseManager {
     }
   }
 
-  static async getActiveProducts() {
+  static async getActiveProducts(): Promise<Product[]> {
     try {
       return await prisma.product.findMany({
         where: { active: true },
@@ -144,7 +157,7 @@ export class DatabaseManager {
     }
   }
 
-  static async updateProduct(productId, updates) {
+  static async updateProduct(productId: string, updates: Partial<Product>): Promise<Product> {
     try {
       return await prisma.product.update({
         where: { id: productId },
@@ -156,7 +169,7 @@ export class DatabaseManager {
     }
   }
 
-  static async updateProductInventory(productId, quantityChange) {
+  static async updateProductInventory(productId: string, quantityChange: number): Promise<Product> {
     try {
       return await prisma.product.update({
         where: { id: productId },
@@ -172,7 +185,7 @@ export class DatabaseManager {
     }
   }
 
-  static async findOrCreateProduct(productData) {
+  static async findOrCreateProduct(productData: CreateProductData): Promise<Product> {
     try {
       // Try to find by barcode first
       if (productData.barcode) {
@@ -202,7 +215,7 @@ export class DatabaseManager {
 
   // ==================== ORDERS ====================
   
-  static async createOrder(orderData) {
+  static async createOrder(orderData: CreateOrderData): Promise<Order> {
     try {
       return await prisma.order.create({
         data: {
@@ -231,7 +244,7 @@ export class DatabaseManager {
     }
   }
 
-  static async getOrderByOrderId(orderId) {
+  static async getOrderByOrderId(orderId: string): Promise<OrderWithItems | null> {
     try {
       return await prisma.order.findUnique({
         where: { orderId },
@@ -249,19 +262,15 @@ export class DatabaseManager {
       throw new Error('Unable to retrieve order');
     }
   }
-
-  static async getOrdersByName(name) {
+  
+  static async getOrdersByName(name: string): Promise<OrderWithItems[]> {
     try {
       return await prisma.order.findMany({
         where: { user: {
           wechatId: { contains: name, mode: 'insensitive' }
         } },
         include: {
-          user: {
-            select: {
-              wechatId: true,
-            },
-          },
+          user: true,
           orderItems: {
             include: {
               product: true
@@ -276,11 +285,12 @@ export class DatabaseManager {
     }
   }
 
-  static async getOrdersByPhone(phone) {
+  static async getOrdersByPhone(phone: string): Promise<OrderWithItems[]> {
     try {
       return await prisma.order.findMany({
         where: { phone },
         include: {
+          user: true,
           orderItems: {
             include: {
               product: true
@@ -295,9 +305,9 @@ export class DatabaseManager {
     }
   }
 
-  static async getUnpaidOrders(phone = null, email = null) {
+  static async getUnpaidOrders(phone: string | null = null, email: string | null = null): Promise<OrderWithItems[]> {
     try {
-      const where = {
+      const where: Prisma.OrderWhereInput = {
         paidStatus: {
           notIn: ['已付款', 'cash', 'etransfer', '弃单']
         },
@@ -339,7 +349,7 @@ export class DatabaseManager {
     }
   }
 
-  static async updateOrderStatus(orderId, status, paymentId = null) {
+  static async updateOrderStatus(orderId: string, status: string, paymentId: string | null = null): Promise<Order> {
     try {
       return await prisma.order.update({
         where: { orderId },
@@ -354,7 +364,7 @@ export class DatabaseManager {
     }
   }
 
-  static async updateOrder(orderId, updates) {
+  static async updateOrder(orderId: string, updates: Partial<Order>): Promise<Order> {
     try {
       return await prisma.order.update({
         where: { orderId },
@@ -368,7 +378,7 @@ export class DatabaseManager {
 
   // ==================== ORDER ITEMS ====================
   
-  static async createOrderItem(itemData) {
+  static async createOrderItem(itemData: CreateOrderItemData): Promise<OrderItem> {
     try {
       const priceAtPurchase = itemData.totalProductAmount / itemData.quantity;
       
@@ -393,7 +403,7 @@ export class DatabaseManager {
     }
   }
 
-  static async getOrderItems(orderId) {
+  static async getOrderItems(orderId: string) {
     try {
       return await prisma.orderItem.findMany({
         where: { orderId },
@@ -407,7 +417,7 @@ export class DatabaseManager {
     }
   }
 
-  static async updateOrderItem(orderItemId, updates) {
+  static async updateOrderItem(orderItemId: string, updates: Partial<OrderItem>): Promise<OrderItem> {
     try {
       return await prisma.orderItem.update({
         where: { id: orderItemId },
@@ -421,7 +431,7 @@ export class DatabaseManager {
 
   // ==================== PAYMENT LINKS ====================
   
-  static async createPaymentLink(linkData) {
+  static async createPaymentLink(linkData: CreatePaymentLinkData): Promise<PaymentLink> {
     try {
       return await prisma.paymentLink.create({
         data: {
@@ -438,7 +448,7 @@ export class DatabaseManager {
     }
   }
 
-  static async getPaymentLinkByToken(token) {
+  static async getPaymentLinkByToken(token: string): Promise<PaymentLink | null> {
     try {
       return await prisma.paymentLink.findUnique({
         where: { token }
@@ -449,7 +459,7 @@ export class DatabaseManager {
     }
   }
 
-  static async markPaymentLinkUsed(token) {
+  static async markPaymentLinkUsed(token: string): Promise<PaymentLink> {
     try {
       return await prisma.paymentLink.update({
         where: { token },
@@ -463,7 +473,7 @@ export class DatabaseManager {
 
   // ==================== SYNC LOG ====================
   
-  static async createSyncLog(logData) {
+  static async createSyncLog(logData: CreateSyncLogData): Promise<SyncLog> {
     try {
       return await prisma.syncLog.create({
         data: {
@@ -482,7 +492,7 @@ export class DatabaseManager {
     }
   }
 
-  static async updateSyncLog(syncLogId, updates) {
+  static async updateSyncLog(syncLogId: string, updates: UpdateSyncLogData): Promise<SyncLog> {
     try {
       return await prisma.syncLog.update({
         where: { id: syncLogId },
@@ -497,7 +507,7 @@ export class DatabaseManager {
     }
   }
 
-  static async getRecentSyncLogs(limit = 10) {
+  static async getRecentSyncLogs(limit: number = 10): Promise<SyncLog[]> {
     try {
       return await prisma.syncLog.findMany({
         orderBy: { createdAt: 'desc' },
@@ -511,14 +521,17 @@ export class DatabaseManager {
 
   // ==================== ANALYTICS ====================
   
-  static async getProductSalesReport(startDate = null, endDate = null) {
+  static async getProductSalesReport(startDate: string | null = null, endDate: string | null = null): Promise<ProductSalesReportItem[]> {
     try {
-      const where = {};
+      const where: Prisma.OrderItemWhereInput = {};
       
       if (startDate || endDate) {
         where.order = {};
-        if (startDate) where.order.orderTime = { gte: new Date(startDate) };
-        if (endDate) where.order.orderTime = { ...where.order.orderTime, lte: new Date(endDate) };
+        if (startDate) {
+          if( endDate ) where.order.orderTime = { gte: new Date(startDate), lte: new Date(endDate) };
+          else where.order.orderTime = { gte: new Date(startDate) };
+        }
+        else if (endDate) where.order.orderTime = { lte: new Date(endDate) };
       }
 
       const salesData = await prisma.orderItem.groupBy({
@@ -546,7 +559,7 @@ export class DatabaseManager {
     }
   }
 
-  static async getOrderStatistics() {
+  static async getOrderStatistics(): Promise<OrderStatistics> {
     try {
       const [
         totalOrders,
