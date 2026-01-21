@@ -321,7 +321,7 @@ import { DatabaseManager } from './src/lib/dbManager.ts';
 const order = await DatabaseManager.getOrderByOrderId('ORD-123');
 
 // Get customer's unpaid orders
-const orders = await DatabaseManager.getUnpaidOrders('555-0100');
+const orders = await DatabaseManager.getAllOrders({ activeOrdersOnly: true }, '555-0100');
 
 // Update order status
 await DatabaseManager.updateOrderStatus('ORD-123', '已付款', 'PAY-123');

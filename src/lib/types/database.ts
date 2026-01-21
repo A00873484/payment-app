@@ -97,3 +97,15 @@ export interface OrderWithItems extends Order {
   orderItems: OrderItem[];
   user?: User | null;
 }
+
+export interface CustomerWithOrders extends User {
+  orders: OrderWithItems[];
+}
+
+export interface ErrorResponse {
+  error: string;
+}
+
+export interface Filters {
+  activeOrdersOnly?: boolean;
+}

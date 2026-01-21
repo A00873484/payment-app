@@ -196,7 +196,7 @@
    ↓
 4. Orders fetched from DATABASE (fast! ⚡)
    GET /api/customer/orders
-   DatabaseManager.getUnpaidOrders(phone)
+   DatabaseManager.getAllOrders({ activeOrdersOnly: true }, phone)
    ↓
 5. Orders displayed with:
    - Product details

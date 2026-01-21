@@ -12,7 +12,9 @@ import type {
   UpdateSyncLogData,
   ProductSalesReportItem,
   OrderStatistics,
-  OrderWithItems
+  OrderWithItems,
+  CustomerWithOrders,
+  Filters
 } from './types/database';
 import type { User, Product, Order, OrderItem, PaymentLink, SyncLog, Prisma } from '@prisma/client';
 
@@ -213,6 +215,46 @@ export class DatabaseManager {
     }
   }
 
+  // ==================== CUSTOMERS ====================
+
+  static async getAllCustomers(filters: Filters): Promise<CustomerWithOrders[]> {
+    if(!filters) filters = {};
+    const where: Prisma.OrderWhereInput = {};
+    if (filters?.activeOrdersOnly) {
+      where.paidStatus = {
+        notIn: ['已付款', 'cash', 'etransfer', '弃单']
+      };
+      where.shippingStatus = {
+        notIn: ['已發貨', 'Cancelled', 'Canceled']
+      };
+      where.packingStatus = {
+        notIn: ['未完成那箱', '已取消']
+      };
+    }
+    
+    try {
+      return await prisma.user.findMany({
+        include: {
+          orders: {
+            where,
+            include: {
+              orderItems: {
+                include: {
+                  product: true
+                }
+              }
+            },
+            orderBy: { orderTime: 'desc' }
+          }
+        },
+        orderBy: { name: 'asc' }
+      });
+    } catch (error) {
+      console.error('Failed to get customers:', error);
+      throw new Error('Unable to retrieve customers');
+    }
+  }
+
   // ==================== ORDERS ====================
   
   static async createOrder(orderData: CreateOrderData): Promise<Order> {
@@ -305,16 +347,17 @@ export class DatabaseManager {
     }
   }
 
-  static async getUnpaidOrders(phone: string | null = null, email: string | null = null): Promise<OrderWithItems[]> {
+  static async getAllOrders(filters: Filters,phone: string | null = null, email: string | null = null): Promise<OrderWithItems[]> {
     try {
-      const where: Prisma.OrderWhereInput = {
-        paidStatus: {
+      const where: Prisma.OrderWhereInput = {}
+      if (filters?.activeOrdersOnly) {
+        where.paidStatus = {
           notIn: ['已付款', 'cash', 'etransfer', '弃单']
-        },
-        shippingStatus: {
+        };
+        where.shippingStatus = {
           notIn: ['已發貨', 'Cancelled', 'Canceled']
-        },
-        packingStatus: {
+        };
+        where.packingStatus = {
           notIn: ['未完成那箱', '已取消']
         }
       };
