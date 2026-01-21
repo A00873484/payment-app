@@ -1,8 +1,9 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
+import type { NextRequestWithAuth } from "next-auth/middleware";
 
 export default withAuth(
-  function middleware(req) {
+  function middleware(req: NextRequestWithAuth) {
     console.log("[middleware] running:", req.nextUrl.pathname);
     const token = req.nextauth.token;
 
@@ -22,7 +23,7 @@ export default withAuth(
 export const config = {
   matcher: [
     //'/',
-    '/api/((?!/auth|/customer|/orders/search).*)',
+    '/api((?!/public|/auth).*)',
     '/admin((?!/signin|/error).*)',
   ],
 };

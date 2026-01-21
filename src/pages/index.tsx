@@ -1,35 +1,16 @@
 import { useState, useEffect } from "react";
 import Head from "next/head";
-import type { SearchResponse, SearchResult, ErrorResponse } from './api/orders/search';
+import type { OrderSearchResponse, OrderSearchResult } from '@/lib/types/api';
+import { ErrorResponse } from "@/lib/types/database";
 
-/*interface OrderItem {
-  brand: string;
-  productName: string;
-  specification: string;
-  quantity: number;
-  totalProductAmount: number;
-}
-
-interface Order {
-  id: string;
-  orderId: string;
-  name: string;
-  endPhone: string;
-  orderItems: OrderItem[];
-  totalOrderAmount: number;
-  orderTime: Date;
-  paidStatus: string;
-  packingStatus: string;
-  shippingStatus: string;
-}*/
 
 type StatusType = 'payment' | 'packing' | 'shipping';
 
 export default function AdminOrderSearch() {
   const [query, setQuery] = useState<string>("");
   const [debouncedQuery, setDebouncedQuery] = useState<string>("");
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [allResults, setAllResults] = useState<SearchResult[]>([]); // Store all search results
+  const [results, setResults] = useState<OrderSearchResult[]>([]);
+  const [allResults, setAllResults] = useState<OrderSearchResult[]>([]); // Store all search results
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
@@ -59,7 +40,7 @@ export default function AdminOrderSearch() {
 
       try {
         const res = await fetch(
-          `/api/orders/search?query=${encodeURIComponent(debouncedQuery)}`
+          `/api/public/orders/search?query=${encodeURIComponent(debouncedQuery)}`
         );
 
         if (!res.ok) {
@@ -67,7 +48,7 @@ export default function AdminOrderSearch() {
           throw new Error(data.error || "Search failed");
         }
 
-        const data: SearchResponse = await res.json();
+        const data: OrderSearchResponse = await res.json();
         setAllResults(data.results);
         setResults(data.results);
         setSelectedCustomer(null); // Reset customer filter on new search
@@ -328,7 +309,7 @@ function StatusBadge({ status, type }: StatusBadgeProps) {
 
 // Table row for each order with expandable order items
 interface OrderRowProps {
-  order: SearchResult;
+  order: OrderSearchResult;
   isExpanded: boolean;
   onToggle: () => void;
   onCustomerClick: (name: string | null) => void;

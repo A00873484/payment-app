@@ -1,25 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { DatabaseManager } from '../../../lib/dbManager';
-import type { User, Order, OrderItem } from '@prisma/client';
-
-export interface SearchResult extends Order {
-  name: User['wechatId'] | '';
-  orderId: string;
-  orderItems: OrderItem[];
-  endPhone: string;
-}
-
-export interface SearchResponse {
-  results: SearchResult[];
-}
-
-export interface ErrorResponse {
-  error: string;
-}
+import { DatabaseManager } from '../../../../lib/dbManager';
+import { ErrorResponse } from '@/lib/types/database';
+import { OrderSearchResponse, OrderSearchResult } from '@/lib/types/api';
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<SearchResponse | ErrorResponse>
+  res: NextApiResponse<OrderSearchResponse | ErrorResponse>
 ) {
   console.log("Received search request:", req.method, req.query);
 
@@ -48,7 +34,7 @@ export default async function handler(
         paidStatus: order.paidStatus,
         packingStatus: order.packingStatus,
         shippingStatus: order.shippingStatus,
-      })) as SearchResult[]
+      })) as OrderSearchResult[]
     });
 
   } catch (err) {

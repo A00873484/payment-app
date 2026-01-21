@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     const { phone, email } = tokenValidation.payload;
 
     // Get unpaid orders from database
-    const orders = await DatabaseManager.getUnpaidOrders(phone, email);
+    const orders = await DatabaseManager.getAllOrders({ activeOrdersOnly: true }, phone, email);
 
     // Calculate totals
     const totalAmount = orders.reduce((sum, order) => sum + order.totalOrderAmount, 0);
