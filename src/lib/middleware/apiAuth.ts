@@ -1,5 +1,12 @@
-// src/lib/middleware/apiAuth.js
+// src/lib/middleware/apiAuth.ts
 import crypto from 'crypto';
+import type { NextApiRequest, NextApiResponse, NextApiHandler } from 'next';
+import type { 
+  Permission, 
+  APIKeyConfig, 
+  RateLimitResult, 
+  AuthenticatedNextApiRequest 
+} from '../types/auth';
 
 /**
  * Simplified API authentication middleware using environment variables
@@ -7,11 +14,13 @@ import crypto from 'crypto';
  */
 
 // Simple in-memory rate limiting (resets on server restart)
-const rateLimitStorage = new Map();
+const rateLimitStorage = new Map<string, number>();
 
-// Configuration from environment
-const getApiKeys = () => {
-  const keys = new Map();
+/**
+ * Get API keys configuration from environment
+ */
+const getApiKeys = (): Map<string, APIKeyConfig> => {
+  const keys = new Map<string, APIKeyConfig>();
   
   // Master admin key
   if (process.env.API_MASTER_KEY) {
@@ -46,14 +55,14 @@ const getApiKeys = () => {
 /**
  * Hash API key for comparison
  */
-function hashKey(key) {
+function hashKey(key: string): string {
   return crypto.createHash('sha256').update(key).digest('hex');
 }
 
 /**
  * Extract API key from request
  */
-function extractAPIKey(req) {
+function extractAPIKey(req: NextApiRequest): string | null {
   // Check Authorization header (Bearer token)
   const authHeader = req.headers.authorization;
   if (authHeader?.startsWith('Bearer ')) {
@@ -62,17 +71,17 @@ function extractAPIKey(req) {
   
   // Check x-api-key header
   const apiKeyHeader = req.headers['x-api-key'];
-  if (apiKeyHeader) {
+  if (typeof apiKeyHeader === 'string') {
     return apiKeyHeader;
   }
   
   // Check query parameter
-  if (req.query?.api_key) {
+  if (req.query?.api_key && typeof req.query.api_key === 'string') {
     return req.query.api_key;
   }
   
   // Check request body (for webhooks)
-  if (req.body?.apiKey) {
+  if (req.body?.apiKey && typeof req.body.apiKey === 'string') {
     return req.body.apiKey;
   }
   
@@ -82,7 +91,7 @@ function extractAPIKey(req) {
 /**
  * Check if request is from internal source
  */
-function isInternalRequest(req) {
+function isInternalRequest(req: NextApiRequest): boolean {
   const host = req.headers.host || '';
   const origin = req.headers.origin || '';
   const referer = req.headers.referer || '';
@@ -97,7 +106,7 @@ function isInternalRequest(req) {
 /**
  * Check rate limit
  */
-function checkRateLimit(keyHash, limit) {
+function checkRateLimit(keyHash: string, limit: number): RateLimitResult {
   const now = new Date();
   const hourKey = `${keyHash}_${now.getFullYear()}_${now.getMonth()}_${now.getDate()}_${now.getHours()}`;
   
@@ -132,7 +141,7 @@ function checkRateLimit(keyHash, limit) {
 /**
  * Clean up old rate limit entries (older than 2 hours)
  */
-function cleanupOldRateLimits() {
+function cleanupOldRateLimits(): void {
   const now = new Date();
   const twoHoursAgo = now.getTime() - (2 * 60 * 60 * 1000);
   
@@ -154,13 +163,31 @@ function cleanupOldRateLimits() {
 }
 
 /**
- * Main authentication middleware
- * @param {string[]} requiredPermissions - Array of required permissions
- * @returns {Function} Middleware function
+ * Get client IP address
  */
-export function withAPIAuth(requiredPermissions = []) {
-  return function authMiddleware(handler) {
-    return async function authenticatedHandler(req, res) {
+function getClientIp(req: NextApiRequest): string {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string') {
+    return forwarded.split(',')[0];
+  }
+  
+  const realIp = req.headers['x-real-ip'];
+  if (typeof realIp === 'string') {
+    return realIp;
+  }
+  
+  return req.socket?.remoteAddress || 'unknown';
+}
+
+/**
+ * Main authentication middleware
+ */
+export function withAPIAuth(requiredPermissions: Permission[] = []) {
+  return function authMiddleware(handler: NextApiHandler) {
+    return async function authenticatedHandler(
+      req: AuthenticatedNextApiRequest,
+      res: NextApiResponse
+    ) {
       try {
         // Skip authentication for internal requests
         if (isInternalRequest(req)) {
@@ -221,9 +248,9 @@ export function withAPIAuth(requiredPermissions = []) {
         }
 
         // Add rate limit headers
-        res.setHeader('X-RateLimit-Limit', rateLimit.limit);
-        res.setHeader('X-RateLimit-Remaining', rateLimit.remaining);
-        res.setHeader('X-RateLimit-Reset', Math.ceil(rateLimit.retryAfter / 60));
+        res.setHeader('X-RateLimit-Limit', rateLimit.limit.toString());
+        res.setHeader('X-RateLimit-Remaining', (rateLimit.remaining || 0).toString());
+        res.setHeader('X-RateLimit-Reset', Math.ceil((rateLimit.retryAfter || 0) / 60).toString());
 
         // Add API key info to request
         req.apiKey = {
@@ -231,7 +258,7 @@ export function withAPIAuth(requiredPermissions = []) {
           permissions: keyConfig.permissions
         };
 
-        // Log usage (in production, you might want to log to a file or service)
+        // Log usage
         console.log(`API Request: ${req.method} ${req.url} by "${keyConfig.name}"`);
 
         // Call the actual handler
@@ -249,22 +276,9 @@ export function withAPIAuth(requiredPermissions = []) {
 }
 
 /**
- * Get client IP address
- */
-function getClientIp(req) {
-  return (
-    req.headers['x-forwarded-for']?.split(',')[0] ||
-    req.headers['x-real-ip'] ||
-    req.socket?.remoteAddress ||
-    'unknown'
-  );
-}
-
-/**
  * Generate a new API key (for manual rotation)
- * Run this in Node.js REPL or a script to generate new keys
  */
-export function generateAPIKey(prefix = 'sk') {
+export function generateAPIKey(prefix: string = 'sk'): string {
   const randomBytes = crypto.randomBytes(32);
   const timestamp = Date.now().toString(36);
   const hash = crypto.createHash('sha256').update(randomBytes).digest('hex');

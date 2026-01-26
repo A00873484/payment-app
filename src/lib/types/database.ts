@@ -103,7 +103,13 @@ export interface CustomerWithOrders extends User {
 }
 
 export interface ErrorResponse {
+  success?: false;
   error: string;
+}
+
+export interface SuccessResponse {
+  success?: boolean;
+  message: string;
 }
 
 export interface Filters {

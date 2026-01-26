@@ -1,8 +1,17 @@
 import { MasterSheetWriter } from '../../../lib/masterSheetWriter';
 import { DatabaseManager } from '../../../lib/dbManager';
 import { withAPIAuth } from '../../../lib/middleware/apiAuth';
+import { NextApiRequest, NextApiResponse } from 'next';
+import { ErrorResponse } from '@/lib/types/database';
+import prisma from '@/lib/db';
 
-async function handler(req, res) {
+interface MasterUpdateResponse {
+  success: boolean;
+  message?: string;
+  synced?: number;
+}
+
+async function handler(req: NextApiRequest, res: NextApiResponse<MasterUpdateResponse | ErrorResponse>) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -51,9 +60,9 @@ async function handler(req, res) {
     console.error('Master sync error:', error);
     return res.status(500).json({
       success: false,
-      error: error.message,
+      error: 'Internal server error',
     });
   }
 }
 
-export default withAPIAuth(handler);
+export default withAPIAuth(['admin'])(handler);

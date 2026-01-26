@@ -7,6 +7,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { OrderWithItems } from "@/lib/types/database";
 import { CustomerWithOrdersResult } from "@/lib/types/api";
+import { errorMessage } from "@/lib/utils";
 
 interface DemoForm {
   customerEmail: string;
@@ -116,7 +117,7 @@ export default function AdminDashboard() {
       setSuccess('Customer portal link generated successfully!');
     } catch (error) {
       console.error('Error generating portal link:', error);
-      setError(error instanceof Error ? error.message : 'Unknown error');
+      setError(errorMessage(error));
     } finally {
       setIsGenerating(false);
     }
@@ -147,7 +148,7 @@ export default function AdminDashboard() {
       setSuccess(`Portal link email sent to ${customer.email}!`);
     } catch (error) {
       console.error('Error sending email:', error);
-      setError(error instanceof Error ? error.message : 'Unknown error');
+      setError(errorMessage(error));
     }
   };
 

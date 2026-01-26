@@ -1,8 +1,20 @@
 // src/pages/api/sync/reconcile.js - Check database vs Master sheet consistency
 import { SyncManager } from '../../../lib/syncManager';
 import { withAPIAuth } from '../../../lib/middleware/apiAuth';
+import { NextApiRequest, NextApiResponse } from 'next';
+import { ErrorResponse, SuccessResponse } from '@/lib/types/database';
+import { errorMessage } from '@/lib/utils';
 
-async function handler(req, res) {
+interface ReconcileResponse extends SuccessResponse {
+  totalIssues: number;
+  issues: Array<{
+    orderId: string;
+    issue: string;
+    fix: string;
+  }>;
+}
+
+async function handler(req: NextApiRequest, res: NextApiResponse<ReconcileResponse | ErrorResponse>) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -13,17 +25,16 @@ async function handler(req, res) {
     const result = await SyncManager.reconcile();
 
     return res.status(200).json({
-      success: true,
-      message: `Found ${result.totalIssues} inconsistencies`,
+      message: 'Reconciliation completed',
       ...result,
     });
   } catch (error) {
     console.error('Reconciliation error:', error);
     return res.status(500).json({
       success: false,
-      error: error.message,
+      error: errorMessage(error),
     });
   }
 }
 
-export default withAPIAuth(handler);
+export default withAPIAuth(['admin'])(handler);

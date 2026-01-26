@@ -22,8 +22,7 @@ export default withAuth(
 
 export const config = {
   matcher: [
-    //'/',
-    '/api((?!/public|/auth).*)',
+    // Only protect admin UI routes - all API routes are handled separately
     '/admin((?!/signin|/error).*)',
   ],
 };

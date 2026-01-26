@@ -1,10 +1,29 @@
 // src/pages/api/sync/master-update.js - Webhook for Master sheet edits
+import { NextApiRequest, NextApiResponse } from 'next';
 import { MasterSheetSync } from '../../../lib/masterSheetSync';
+import { ErrorResponse } from '@/lib/types/database';
+import { withAPIAuth } from '@/lib/middleware/apiAuth';
+import { errorMessage } from '@/lib/utils';
 
 // Track last sync times to prevent infinite loops
 const lastSyncTimes = new Map();
 
-export default async function handler(req, res) {
+interface MasterUpdateResponse {
+  success: boolean;
+  skipped?: boolean;
+  message?: string;
+  reason?: string;
+  field?: string;
+  paymentUrl?: string;
+  token?: string;
+  expiresIn?: string;
+  orderId?: string;
+  customerEmail?: string;
+  newValue?: undefined;
+  oldValue?: undefined;
+}
+
+async function handler(req: NextApiRequest, res: NextApiResponse<MasterUpdateResponse | ErrorResponse>) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -69,7 +88,6 @@ export default async function handler(req, res) {
     }
 
     return res.status(200).json({
-      success: true,
       message: `Updated ${result.field} for order ${orderId}`,
       ...result,
     });
@@ -77,7 +95,8 @@ export default async function handler(req, res) {
     console.error('Master update error:', error);
     return res.status(500).json({
       success: false,
-      error: error.message,
+      error: errorMessage(error),
     });
   }
 }
+export default withAPIAuth(['admin'])(handler);

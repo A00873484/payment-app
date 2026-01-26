@@ -1,11 +1,18 @@
 // src/pages/api/payment/process.js - Updated to use Prisma
+import { NextApiRequest, NextApiResponse } from 'next';
 import { AlphaPayProcessor } from '../../../lib/alphapay';
 import { DatabaseManager } from '../../../lib/dbManager';
 import { EmailService } from '../../../lib/email';
 import { verifyToken } from '../../../lib/jwt';
 import { InputValidator } from '../../../lib/validators';
+import { ErrorResponse } from '@/lib/types/database';
 
-export default async function handler(req, res) {
+interface PaymentProcessResponse {
+  success: boolean;
+  paymentResult: { paymentId: string; status: string; amount: number; currency: string; };
+}
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse<PaymentProcessResponse | ErrorResponse>) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -24,7 +31,7 @@ export default async function handler(req, res) {
     const { paymentData } = req.body;
 
     // Validate payment data
-    const validationErrors = {};
+    const validationErrors: { [key: string]: string | null } = {};
     validationErrors.email = InputValidator.validateEmail(paymentData.email);
     validationErrors.cardNumber = InputValidator.validateCardNumber(paymentData.cardNumber);
     validationErrors.expiry = InputValidator.validateExpiryDate(paymentData.expiry);
@@ -37,11 +44,11 @@ export default async function handler(req, res) {
     });
 
     if (Object.keys(validationErrors).length > 0) {
-      return res.status(400).json({ error: 'Validation failed', validationErrors });
+      return res.status(400).json({ error: `Validation failed validationErrors: ${Object.values(validationErrors).join(', ') }` });
     }
 
     // Process payment
-    const paymentResult = await AlphaPayProcessor.processPayment(paymentData);
+    const paymentResult: { paymentId: string; status: string; amount: number; currency: string } = await AlphaPayProcessor.processPayment(paymentData);
 
     // Update order status in database
     await DatabaseManager.updateOrderStatus(
@@ -55,28 +62,17 @@ export default async function handler(req, res) {
 
     // Get order details for email
     const order = await DatabaseManager.getOrderByOrderId(paymentData.orderId);
-
-    // Format order data for email
-    const orderData = {
-      orderId: order.orderId,
-      customerName: order.user?.name || 'Guest',
-      customerEmail: order.user?.email || paymentData.email,
-      items: order.orderItems.map(item => ({
-        name: item.productName,
-        specification: item.specification,
-        price: item.priceAtPurchase,
-        quantity: item.quantity,
-      })),
-      total: order.totalOrderAmount,
-    };
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
 
     // Send confirmation email
-    await EmailService.sendConfirmationEmail(orderData, paymentResult);
+    await EmailService.sendConfirmationEmail(order, paymentResult);
 
     res.status(200).json({ success: true, paymentResult });
 
   } catch (error) {
     console.error('Payment API Error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Payment processing failed' });
   }
 }

@@ -1,8 +1,33 @@
 // src/pages/api/sync/status.js - Get sync statistics
+import { NextApiRequest, NextApiResponse } from 'next';
 import { DatabaseManager } from '../../../lib/dbManager';
 import { withAPIAuth } from '../../../lib/middleware/apiAuth';
+import { ErrorResponse } from '@/lib/types/database';
+import { errorMessage } from '@/lib/utils';
 
-async function handler(req, res) {
+interface StatusStats {
+  totalOrders: number;
+  paidOrders: number;
+  unpaidOrders: number;
+  totalRevenue: number;
+  recentSyncs: Array<{
+    id: string;
+    sheetName: string;
+    syncType: string;
+    status: string;
+    recordsAdded: number;
+    recordsUpdated: number;
+    recordsFailed: number;
+    createdAt: Date;
+  }>;
+}
+
+interface StatusResponse {
+  success: true;
+  stats: StatusStats;
+}
+
+async function handler(req: NextApiRequest, res: NextApiResponse<StatusResponse | ErrorResponse>) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -39,9 +64,9 @@ async function handler(req, res) {
     console.error('Status error:', error);
     return res.status(500).json({
       success: false,
-      error: error.message,
+      error: errorMessage(error),
     });
   }
 }
 
-export default withAPIAuth(handler);
+export default withAPIAuth(['admin'])(handler);

@@ -1,8 +1,46 @@
-// src/pages/api/customer/orders.js - Updated to use Prisma
+// src/pages/api/customer/orders.ts
+import type { NextApiRequest, NextApiResponse } from 'next';
 import { DatabaseManager } from '../../../lib/dbManager';
 import { verifyToken } from '../../../lib/jwt';
+import type { OrderWithItems } from '../../../lib/types/database';
+import { errorMessage } from '@/lib/utils';
 
-export default async function handler(req, res) {
+interface OrderItem {
+  name: string;
+  specification: string | null;
+  quantity: number;
+  price: number;
+  total: number;
+}
+
+interface FormattedOrder {
+  orderId: string;
+  items: OrderItem[];
+  total: number;
+  status: string;
+  shippingStatus: string;
+  packingStatus: string;
+  createdAt: Date;
+  address: string | null;
+}
+
+interface CustomerOrdersResponse {
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  total: number;
+  unpaidOrders: number;
+  orders: FormattedOrder[];
+}
+
+interface ErrorResponse {
+  error: string;
+}
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<CustomerOrdersResponse | ErrorResponse>
+) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -19,16 +57,25 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Invalid or expired token' });
     }
 
-    const { phone, email } = tokenValidation.payload;
+    const phone = tokenValidation.payload?.phone;
+    const email = tokenValidation.payload?.email;
+
+    if (!phone && !email) {
+      return res.status(400).json({ error: 'Phone or email required in token' });
+    }
 
     // Get unpaid orders from database
-    const orders = await DatabaseManager.getAllOrders({ activeOrdersOnly: true }, phone, email);
+    const orders: OrderWithItems[] = await DatabaseManager.getAllOrders(
+      { activeOrdersOnly: true }, 
+      phone, 
+      email
+    );
 
     // Calculate totals
     const totalAmount = orders.reduce((sum, order) => sum + order.totalOrderAmount, 0);
 
     // Format response
-    const formattedOrders = orders.map(order => ({
+    const formattedOrders: FormattedOrder[] = orders.map(order => ({
       orderId: order.orderId,
       items: order.orderItems.map(item => ({
         name: item.productName,
@@ -47,8 +94,8 @@ export default async function handler(req, res) {
 
     res.status(200).json({
       customerName: orders[0]?.user?.name || 'Guest',
-      customerPhone: phone,
-      customerEmail: email,
+      customerPhone: phone || '',
+      customerEmail: email || '',
       total: totalAmount,
       unpaidOrders: formattedOrders.length,
       orders: formattedOrders,
@@ -56,6 +103,8 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('API Error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ 
+      error: errorMessage(error) 
+    });
   }
 }

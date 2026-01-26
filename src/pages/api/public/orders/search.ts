@@ -1,13 +1,17 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { DatabaseManager } from '../../../../lib/dbManager';
-import { ErrorResponse } from '@/lib/types/database';
 import { OrderSearchResponse, OrderSearchResult } from '@/lib/types/api';
+import { ErrorResponse } from '@/lib/types/database';
 
+/**
+ * Public search endpoint - no authentication required
+ * This is for the public-facing search page
+ */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<OrderSearchResponse | ErrorResponse>
 ) {
-  console.log("Received search request:", req.method, req.query);
+  console.log("Received public search request:", req.method, req.query);
 
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -16,7 +20,7 @@ export default async function handler(
   const query = typeof req.query.query === 'string' ? req.query.query.trim().toLowerCase() : '';
 
   if (!query) {
-    return res.status(400).json({ error: "Missing query" });
+    return res.status(400).json({ error: "Missing query parameter" });
   }
 
   try {

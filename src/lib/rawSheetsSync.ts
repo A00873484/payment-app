@@ -1,9 +1,10 @@
 // src/lib/rawSheetsSync.js - Process Raw-QJL and Raw-PT sheets
 import { google } from 'googleapis';
-import { DatabaseManager } from './dbManager.ts';
+import { DatabaseManager } from './dbManager.js';
 import { MasterSheetWriter } from './masterSheetWriter.js';
 import { sheet_rawqjl, sheet_rawpt } from './const.js';
 import { config } from './config.js';
+import { errorMessage } from './utils.js';
 
 const auth = new google.auth.GoogleAuth({
   scopes: ['https://www.googleapis.com/auth/spreadsheets'],
@@ -15,7 +16,7 @@ export class RawSheetsSync {
   /**
    * Sync Raw-QJL or Raw-PT sheets to database (replaces Apps Script SyncHandler)
    */
-  static async syncRawSheetToDatabase(sheetName, startRow, endRow) {
+  static async syncRawSheetToDatabase(sheetName: string, startRow: number, endRow: number) {
     const syncLog = await DatabaseManager.createSyncLog({
       sheetName,
       syncType: 'RAW_SHEET_IMPORT',
@@ -139,7 +140,7 @@ export class RawSheetsSync {
         } catch (error) {
           console.error(`Failed to parse row:`, error);
           recordsFailed++;
-          errors.push(`Row parse error: ${error.message}`);
+          errors.push(`Row parse error: ${errorMessage(error)}`);
         }
       }
 
@@ -151,7 +152,7 @@ export class RawSheetsSync {
           await DatabaseManager.upsertUser(userData);
         } catch (error) {
           console.error(`Failed to upsert user ${phone}:`, error);
-          errors.push(`User ${phone}: ${error.message}`);
+          errors.push(`User ${phone}: ${errorMessage(error)}`);
         }
       }
 
@@ -160,7 +161,7 @@ export class RawSheetsSync {
           await DatabaseManager.findOrCreateProduct(productData);
         } catch (error) {
           console.error(`Failed to create product ${productKey}:`, error);
-          errors.push(`Product ${productKey}: ${error.message}`);
+          errors.push(`Product ${productKey}: ${errorMessage(error)}`);
         }
       }
 
@@ -224,7 +225,7 @@ export class RawSheetsSync {
           await MasterSheetWriter.syncOrderToMaster(orderId);
         } catch (error) {
           console.error(`Failed to process order ${orderId}:`, error);
-          errors.push(`Order ${orderId}: ${error.message}`);
+          errors.push(`Order ${orderId}: ${errorMessage(error)}`);
           recordsFailed++;
         }
       }
@@ -258,7 +259,7 @@ export class RawSheetsSync {
         recordsAdded,
         recordsUpdated,
         recordsFailed,
-        errorMessage: error.message,
+        errorMessage: errorMessage(error),
       });
 
       throw error;
@@ -268,7 +269,7 @@ export class RawSheetsSync {
   /**
    * Parse Raw-QJL row
    */
-  static parseQJLRow(row, colIndex) {
+  static parseQJLRow(row: string[], colIndex: { [key: string]: number }) {
     const phone = this.sanitizePhoneNumber(row[colIndex[sheet_rawqjl.PHONE]]);
     const product = row[colIndex[sheet_rawqjl.PRODUCT_NAME]]?.trim();
     const spec = row[colIndex[sheet_rawqjl.SPECIFICATION]]?.trim();
@@ -303,7 +304,7 @@ export class RawSheetsSync {
   /**
    * Parse Raw-PT row
    */
-  static parsePTRow(row, colIndex) {
+  static parsePTRow(row: string[], colIndex: { [key: string]: number }) {
     const phone = this.sanitizePhoneNumber(row[colIndex[sheet_rawpt.RECIPIENT_PHONE]]);
     const product = row[colIndex[sheet_rawpt.PRODUCT_NAME]]?.trim();
     const spec = row[colIndex[sheet_rawpt.PRODUCT_SPEC]]?.trim();
@@ -338,8 +339,8 @@ export class RawSheetsSync {
   /**
    * Fill merged cell values down (replicates DataUtils.fillMergedValuesDown)
    */
-  static fillMergedValuesDown(data, columnIndex) {
-    let lastValue = null;
+  static fillMergedValuesDown(data: string[][], columnIndex: number) {
+    let lastValue: string | null = null;
     return data.map((row) => {
       const newRow = [...row];
       if (newRow[columnIndex]) {
@@ -354,7 +355,7 @@ export class RawSheetsSync {
   /**
    * Sanitize phone number
    */
-  static sanitizePhoneNumber(phone) {
+  static sanitizePhoneNumber(phone: string | number): string {
     if (!phone) return '';
     return String(phone).replace(/[^\d]/g, '').slice(-10);
   }
@@ -362,7 +363,7 @@ export class RawSheetsSync {
   /**
    * Extract email from string
    */
-  static extractEmail(str) {
+  static extractEmail(str: string | null): string | null {
     if (!str) return null;
     const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/;
     const match = str.match(emailRegex);
@@ -372,7 +373,7 @@ export class RawSheetsSync {
   /**
    * Parse date string
    */
-  static parseDate(dateStr) {
+  static parseDate(dateStr: string | null): Date {
     if (!dateStr) return new Date();
     const date = new Date(dateStr);
     return isNaN(date.getTime()) ? new Date() : date;
