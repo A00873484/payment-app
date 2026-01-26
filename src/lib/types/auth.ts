@@ -32,7 +32,7 @@ export interface JWTPayload {
   orderId?: string;
   orderTotal?: number;
   purpose?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface JWTVerifyResult {
