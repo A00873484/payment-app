@@ -4,8 +4,8 @@
 // ===========================
 // Add this method to your existing SheetsManager class:
 import { google } from 'googleapis';
-import { sheet_master, sheet_user } from './const.js';
-import { config } from './config.js';
+import { sheet_master, sheet_user } from './const';
+import { config } from './config';
 
 const auth = new google.auth.GoogleAuth({
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],

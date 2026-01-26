@@ -1,10 +1,10 @@
 // src/lib/rawSheetsSync.js - Process Raw-QJL and Raw-PT sheets
 import { google } from 'googleapis';
-import { DatabaseManager } from './dbManager.js';
-import { MasterSheetWriter } from './masterSheetWriter.js';
-import { sheet_rawqjl, sheet_rawpt } from './const.js';
-import { config } from './config.js';
-import { errorMessage } from './utils.js';
+import { DatabaseManager } from './dbManager';
+import { MasterSheetWriter } from './masterSheetWriter';
+import { sheet_rawqjl, sheet_rawpt } from './const';
+import { config } from './config';
+import { errorMessage } from './utils';
 
 const auth = new google.auth.GoogleAuth({
   scopes: ['https://www.googleapis.com/auth/spreadsheets'],

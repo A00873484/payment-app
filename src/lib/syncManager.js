@@ -1,9 +1,9 @@
 // src/lib/syncManager.js - Unified sync operations
-import { RawSheetsSync } from './rawSheetsSync.js';
-import { MasterSheetSync } from './masterSheetSync.js';
-import { MasterSheetWriter } from './masterSheetWriter.js';
-import { DatabaseManager } from './dbManager.ts';
-import prisma from './db.ts';
+import { RawSheetsSync } from './rawSheetsSync';
+import { MasterSheetSync } from './masterSheetSync';
+import { MasterSheetWriter } from './masterSheetWriter';
+import { DatabaseManager } from './dbManager';
+import prisma from './db';
 
 /**
  * Unified Sync Manager - Single entry point for all sync operations
