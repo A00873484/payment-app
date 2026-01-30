@@ -17,14 +17,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse<RawSheetSyncRes
   }
 
   try {
-    // Validate API key
-    const apiKey = req.body.apiKey || req.headers['x-api-key'];
-    const expectedKey = process.env.SYNC_API_KEY;
-
-    if (!expectedKey || apiKey !== expectedKey) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
     const { sheetName, startRow, endRow } = req.body;
 
     // Validation

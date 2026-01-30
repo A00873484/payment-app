@@ -309,7 +309,7 @@ export class DatabaseManager {
     try {
       return await prisma.order.findMany({
         where: { user: {
-          wechatId: { contains: name, mode: 'insensitive' }
+          name: { contains: name, mode: 'insensitive' }
         } },
         include: {
           user: true,

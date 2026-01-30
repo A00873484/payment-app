@@ -33,7 +33,7 @@ export class RawSheetsSync {
       // Fetch data from Raw sheet
       const response = await sheets.spreadsheets.values.get({
         spreadsheetId: config.googleSheets.spreadsheetId,
-        range: `${sheetName}!A:BZ`,
+        range: `${sheetName}!A${startRow}:BZ${endRow}`,
       });
 
       const rows = response.data.values;
@@ -41,20 +41,16 @@ export class RawSheetsSync {
         throw new Error(`No data found in ${sheetName}`);
       }
 
-      const [header, ...allDataRows] = rows;
-      const colIndex = Object.fromEntries(header.map((col, i) => [col, i]));
-
-      // Get only the rows that were edited
-      const dataRows = allDataRows.slice(startRow - 2, endRow - 1);
+      const colIndex: { [key: string]: number } = Object.values(sheet_rawqjl).reduce((obj, col, i) => ({ ...obj, [col]: i }), {});
 
       // Fill merged values down (replicates Apps Script behavior)
       let filledData;
       if (sheetName === 'Raw-QJL') {
-        filledData = this.fillMergedValuesDown(dataRows, 0);
+        filledData = this.fillMergedValuesDown(rows, 0);
       } else {
         // Raw-PT has merges in columns 0 and 27
         filledData = this.fillMergedValuesDown(
-          this.fillMergedValuesDown(dataRows, 0),
+          this.fillMergedValuesDown(rows, 0),
           27
         );
       }
@@ -270,33 +266,26 @@ export class RawSheetsSync {
    * Parse Raw-QJL row
    */
   static parseQJLRow(row: string[], colIndex: { [key: string]: number }) {
-    const phone = this.sanitizePhoneNumber(row[colIndex[sheet_rawqjl.PHONE]]);
-    const product = row[colIndex[sheet_rawqjl.PRODUCT_NAME]]?.trim();
-    const spec = row[colIndex[sheet_rawqjl.SPECIFICATION]]?.trim();
-    const category = row[colIndex[sheet_rawqjl.PRODUCT_CATEGORY]]?.trim();
-    const qty = parseInt(row[colIndex[sheet_rawqjl.QUANTITY]], 10) || 0;
-    const price = parseFloat(row[colIndex[sheet_rawqjl.TOTAL_PRODUCT_AMOUNT]]) || 0;
-    const total = parseFloat(row[colIndex[sheet_rawqjl.ORDER_TOTAL]]) || 0;
-    const orderNumber = row[colIndex[sheet_rawqjl.ORDER_NUMBER]]?.trim();
+    const orderNumber = row[colIndex[sheet_rawqjl.ORDER_ID]]?.trim();
     const orderId = `QJL-${orderNumber}`;
 
     return {
-      phone,
-      product,
-      spec,
-      category,
-      qty,
-      price,
-      total,
+      phone: this.sanitizePhoneNumber(row[colIndex[sheet_rawqjl.ALT_PHONE]]),
+      product: row[colIndex[sheet_rawqjl.PRODUCT_NAME]]?.trim(),
+      spec: row[colIndex[sheet_rawqjl.SPECIFICATION]]?.trim(),
+      category: row[colIndex[sheet_rawqjl.PRODUCT_CATEGORY]]?.trim(),
+      qty: parseInt(row[colIndex[sheet_rawqjl.QUANTITY]], 10) || 0,
+      price: parseFloat(row[colIndex[sheet_rawqjl.TOTAL_PRODUCT_AMOUNT]]) || 0,
+      total: parseFloat(row[colIndex[sheet_rawqjl.ORDER_TOTAL]]) || 0,
       orderId,
-      orderTime: this.parseDate(row[colIndex[sheet_rawqjl.TIMESTAMP]]?.trim()),
-      name: row[colIndex[sheet_rawqjl.USERNAME]]?.trim() || '',
+      orderTime: this.parseDate(row[colIndex[sheet_rawqjl.ORDER_TIME]]?.trim()),
+      name: row[colIndex[sheet_rawqjl.WECHAT_NAME]]?.trim() || '',
       nameId: row[colIndex[sheet_rawqjl.WECHAT_ID]]?.trim() || '',
       englishName: row[colIndex[sheet_rawqjl.RECIPIENT_NAME_EN]]?.trim() || '',
       address: row[colIndex[sheet_rawqjl.ALT_ADDRESS]]?.trim() || '',
       email: this.extractEmail(row[colIndex[sheet_rawqjl.EMAIL]]?.trim()),
-      notes: row[colIndex[sheet_rawqjl.NOTES]]?.trim() || '',
-      wordChain: row[colIndex[sheet_rawqjl.SEQUENCE_NUMBER]]?.trim() || '',
+      notes: row[colIndex[sheet_rawqjl.USER_NOTES]]?.trim() || '',
+      wordChain: row[colIndex[sheet_rawqjl.CHAIN_NUMBER]]?.trim() || '',
       shippingCost: parseFloat(row[colIndex[sheet_rawqjl.SHIPPING_FEE]]) || 0,
     };
   }
@@ -305,24 +294,17 @@ export class RawSheetsSync {
    * Parse Raw-PT row
    */
   static parsePTRow(row: string[], colIndex: { [key: string]: number }) {
-    const phone = this.sanitizePhoneNumber(row[colIndex[sheet_rawpt.RECIPIENT_PHONE]]);
-    const product = row[colIndex[sheet_rawpt.PRODUCT_NAME]]?.trim();
-    const spec = row[colIndex[sheet_rawpt.PRODUCT_SPEC]]?.trim();
-    const category = row[colIndex[sheet_rawpt.PRODUCT_CATEGORY]]?.trim();
-    const qty = parseInt(row[colIndex[sheet_rawpt.PRODUCT_QUANTITY]], 10) || 0;
-    const price = parseFloat(row[colIndex[sheet_rawpt.PRODUCT_TOTAL_PRICE]]) || 0;
-    const total = parseFloat(row[colIndex[sheet_rawpt.ORDER_AMOUNT]]) || 0;
     const orderNumber = row[colIndex[sheet_rawpt.ORDER_ID]]?.trim();
     const orderId = `PT-${orderNumber}`;
 
     return {
-      phone,
-      product,
-      spec,
-      category,
-      qty,
-      price,
-      total,
+      phone: this.sanitizePhoneNumber(row[colIndex[sheet_rawpt.RECIPIENT_PHONE]]),
+      product: row[colIndex[sheet_rawpt.PRODUCT_NAME]]?.trim(),
+      spec: row[colIndex[sheet_rawpt.PRODUCT_SPEC]]?.trim(),
+      category: row[colIndex[sheet_rawpt.PRODUCT_CATEGORY]]?.trim(),
+      qty: parseInt(row[colIndex[sheet_rawpt.PRODUCT_QUANTITY]], 10) || 0,
+      price: parseFloat(row[colIndex[sheet_rawpt.PRODUCT_TOTAL_PRICE]]) || 0,
+      total: parseFloat(row[colIndex[sheet_rawpt.ORDER_AMOUNT]]) || 0,
       orderId,
       orderTime: this.parseDate(row[colIndex[sheet_rawpt.ORDER_TIME]]?.trim()),
       name: row[colIndex[sheet_rawpt.CUSTOMER_NICKNAME]]?.trim() || '',

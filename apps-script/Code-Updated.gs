@@ -4,7 +4,7 @@
  * Setup Instructions:
  * 1. File > Project settings > Script properties
  * 2. Add properties:
- *    - API_URL: https://your-app.com (your Next.js deployment URL)
+ *    - API_URL: https://payment-app-wheat.vercel.app (your Next.js deployment URL)
  *    - API_KEY: your-secret-api-key (matches SYNC_API_KEY in .env)
  * 
  * 3. Keep existing trigger: onEdit
@@ -31,8 +31,9 @@ function onEdit(e) {
   try {
     // Route based on sheet and edit type
     if (sheetName === "Raw-QJL" || sheetName === "Raw-PT") {
-      // Raw sheets: bulk import
-      if (range.getNumRows() > 1 || range.getNumColumns() > 1) {
+      // Raw sheets: sync ANY edit (including single cells)
+      // Skip header row
+      if (editedRow > 1) {
         callRawSheetsSync(e);
       }
     } else if (sheetName === "Master") {
@@ -60,7 +61,13 @@ function callRawSheetsSync(e) {
     apiKey: PropertiesService.getScriptProperties().getProperty('API_KEY')
   };
   
-  makeApiCall('/api/sync/raw-sheets', payload);
+  console.log('Calling raw-sheets sync:', payload);
+  
+  const result = makeApiCall('/api/sync/raw-sheets', payload);
+  
+  if (result) {
+    console.log('Sync result:', result);
+  }
 }
 
 function callMasterUpdate(e) {
@@ -82,21 +89,105 @@ function callMasterUpdate(e) {
     apiKey: PropertiesService.getScriptProperties().getProperty('API_KEY')
   };
   
-  makeApiCall('/api/sync/master-update', payload);
+  console.log('Calling master-update:', payload);
+  
+  const result = makeApiCall('/api/sync/master-update', payload);
+  
+  if (result) {
+    console.log('Update result:', result);
+  }
 }
 
 function makeApiCall(endpoint, payload) {
   const apiUrl = PropertiesService.getScriptProperties().getProperty('API_URL');
-  if (!apiUrl) return null;
+  
+  if (!apiUrl) {
+    console.error('API_URL not configured in Script Properties');
+    return null;
+  }
   
   try {
-    UrlFetchApp.fetch(apiUrl + endpoint, {
+    const response = UrlFetchApp.fetch(apiUrl + endpoint, {
       method: 'POST',
       contentType: 'application/json',
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
     });
+    
+    const responseCode = response.getResponseCode();
+    const responseText = response.getContentText();
+    
+    console.log('API Response:', responseCode, responseText);
+    
+    if (responseCode === 200) {
+      return JSON.parse(responseText);
+    } else {
+      console.error('API Error:', responseCode, responseText);
+      return null;
+    }
   } catch (error) {
-    console.error('API call error:', error);
+    console.error('API call exception:', error);
+    return null;
+  }
+}
+
+/**
+ * Manual sync function - for syncing existing data
+ * Run this once to sync all existing Raw-QJL data
+ */
+function manualSyncRawQJL() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Raw-QJL');
+  const lastRow = sheet.getLastRow();
+  
+  const payload = {
+    sheetName: 'Raw-QJL',
+    startRow: 2, // Skip header
+    endRow: lastRow,
+    apiKey: PropertiesService.getScriptProperties().getProperty('API_KEY')
+  };
+  
+  console.log('Manual sync:', payload);
+  
+  const result = makeApiCall('/api/sync/raw-sheets', payload);
+  
+  if (result) {
+    console.log('Manual sync completed:', result);
+    SpreadsheetApp.getUi().alert(
+      'Sync Complete',
+      `Added: ${result.recordsAdded}\nUpdated: ${result.recordsUpdated}\nFailed: ${result.recordsFailed}`,
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+  } else {
+    SpreadsheetApp.getUi().alert('Sync Failed', 'Check the logs', SpreadsheetApp.getUi().ButtonSet.OK);
+  }
+}
+
+/**
+ * Manual sync function - for syncing existing Raw-PT data
+ */
+function manualSyncRawPT() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Raw-PT');
+  const lastRow = sheet.getLastRow();
+  
+  const payload = {
+    sheetName: 'Raw-PT',
+    startRow: 2, // Skip header
+    endRow: lastRow,
+    apiKey: PropertiesService.getScriptProperties().getProperty('API_KEY')
+  };
+  
+  console.log('Manual sync:', payload);
+  
+  const result = makeApiCall('/api/sync/raw-sheets', payload);
+  
+  if (result) {
+    console.log('Manual sync completed:', result);
+    SpreadsheetApp.getUi().alert(
+      'Sync Complete',
+      `Added: ${result.recordsAdded}\nUpdated: ${result.recordsUpdated}\nFailed: ${result.recordsFailed}`,
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+  } else {
+    SpreadsheetApp.getUi().alert('Sync Failed', 'Check the logs', SpreadsheetApp.getUi().ButtonSet.OK);
   }
 }

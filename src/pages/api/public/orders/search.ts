@@ -30,7 +30,7 @@ export default async function handler(
       results: matches.map(order => ({
         id: order.id,
         orderId: order.wordChain || order.orderId,
-        name: order.user?.wechatId || '',
+        name: order.user?.name || '',
         endPhone: order.phone.slice(-2),
         orderItems: order.orderItems,
         totalOrderAmount: order.totalOrderAmount,
