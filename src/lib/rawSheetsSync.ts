@@ -41,7 +41,7 @@ export class RawSheetsSync {
         throw new Error(`No data found in ${sheetName}`);
       }
 
-      const colIndex: { [key: string]: number } = Object.values(sheet_rawqjl).reduce((obj, col, i) => ({ ...obj, [col]: i }), {});
+      const colIndex: { [key: string]: number } = Object.values(sheetName === 'Raw-QJL' ? sheet_rawqjl : sheet_rawpt).reduce((obj, col, i) => ({ ...obj, [col]: i }), {});
 
       // Fill merged values down (replicates Apps Script behavior)
       let filledData;
@@ -111,7 +111,7 @@ export class RawSheetsSync {
               shippingStatus: '未發貨',
               address: parsedData.address,
               items: [],
-              shipping: null,
+              shipping: sheetName === 'Raw-QJL' ? null : { method: '', detail: ''},
             });
           }
 
@@ -287,6 +287,7 @@ export class RawSheetsSync {
       notes: row[colIndex[sheet_rawqjl.USER_NOTES]]?.trim() || '',
       wordChain: row[colIndex[sheet_rawqjl.CHAIN_NUMBER]]?.trim() || '',
       shippingCost: parseFloat(row[colIndex[sheet_rawqjl.SHIPPING_FEE]]) || 0,
+      shipping: { method: '', detail: ''},
     };
   }
 
@@ -310,11 +311,12 @@ export class RawSheetsSync {
       name: row[colIndex[sheet_rawpt.CUSTOMER_NICKNAME]]?.trim() || '',
       nameId: row[colIndex[sheet_rawpt.CUSTOMER_NICKNAME]]?.trim() || '',
       englishName: row[colIndex[sheet_rawpt.RECIPIENT_NAME]]?.trim() || '',
-      address: row[colIndex[sheet_rawpt.PICKUP_POINT]]?.trim() || row[colIndex[sheet_rawpt.DELIVERY_ADDRESS]]?.trim() || '',
+      address: row[colIndex[sheet_rawpt.DELIVERY_ADDRESS]]?.trim() || '',
       email: this.extractEmail(row[colIndex[sheet_rawpt.ORDER_NOTES]]?.trim()),
       notes: row[colIndex[sheet_rawpt.ORDER_NOTES]]?.trim() || '',
       wordChain: orderNumber,
       shippingCost: parseFloat(row[colIndex[sheet_rawpt.ORDER_SHIPPING_FEE]]) || 0,
+      shipping: { method: row[colIndex[sheet_rawpt.PICKUP_POINT]]?.trim(), detail: row[colIndex[sheet_rawpt.PICKUP_POINT_NOTES]]?.trim()},
     };
   }
 
