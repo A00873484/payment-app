@@ -80,7 +80,8 @@ export default function AdminOrderSearch() {
       filtered = filtered.filter(order => 
         order.shippingStatus !== '已發貨' && 
         order.shippingStatus !== 'Shipped' &&
-        order.shippingStatus !== 'Completed'
+        order.shippingStatus !== 'Completed' &&
+        order.shippingStatus !== 'Cancelled'
       );
     }
 
@@ -230,9 +231,6 @@ export default function AdminOrderSearch() {
                           )}
                         </span>
                       </th>
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Action
-                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -375,14 +373,6 @@ function OrderRow({ order, isExpanded, onToggle, onCustomerClick, isCustomerSele
         </td>
         <td className="px-4 py-3 whitespace-nowrap text-center">
           <StatusBadge status={order.shippingStatus} type="shipping" />
-        </td>
-        <td className="px-4 py-3 whitespace-nowrap text-center">
-          <button
-            className="inline-flex items-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-md transition-colors"
-            onClick={() => console.log("TODO: send email", order.orderId)}
-          >
-            📧 Send Email
-          </button>
         </td>
       </tr>
       

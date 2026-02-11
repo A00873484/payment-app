@@ -23,7 +23,7 @@ interface Config {
 export const config: Config = {
   googleSheets: {
     apiKey: process.env.GOOGLE_SHEETS_API_KEY,
-    spreadsheetId: process.env.SPREADSHEET_ID_TEST || process.env.SPREADSHEET_ID,
+    spreadsheetId: process.env.SPREADSHEET_ID,
   },
   alphaPay: {
     publicKey: process.env.NEXT_PUBLIC_ALPHAPAY_PUBLIC_KEY,

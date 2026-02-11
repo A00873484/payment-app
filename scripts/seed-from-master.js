@@ -1,5 +1,5 @@
 // scripts/seed-from-master.js - Seed database from Master sheet
-import { MasterSheetSync } from '../src/lib/masterSheetSync.js';
+import { MasterSheetSync } from '../src/lib/masterSheetSync.ts';
 
 async function main() {
   console.log('🌱 Seeding database from Master sheet...\n');

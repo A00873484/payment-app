@@ -3,6 +3,7 @@ import { google } from 'googleapis';
 import { DatabaseManager } from './dbManager';
 import { sheet_master } from './const';
 import { config } from './config';
+import { errorMessage } from './utils';
 
 const auth = new google.auth.GoogleAuth({
   scopes: ['https://www.googleapis.com/auth/spreadsheets'],
@@ -73,7 +74,6 @@ export class MasterSheetSync {
         try {
           // Parse row data
           const parsedData = this.parseMasterRow(row, colIndex);
-
           // Check if this row has an orderId (start of new order or continuation)
           const rowOrderId = parsedData.orderId;
           
@@ -169,7 +169,8 @@ export class MasterSheetSync {
         } catch (error) {
           console.error(`Failed to parse row ${i + 2}:`, error);
           recordsFailed++;
-          errors.push(`Row ${i + 2}: ${error.message}`);
+          
+          errors.push(`Row ${i + 2}: ${errorMessage(error)}`);
         }
       }
 
@@ -187,7 +188,7 @@ export class MasterSheetSync {
           await DatabaseManager.upsertUser(userData);
         } catch (error) {
           console.error(`Failed to upsert user ${phone}:`, error);
-          errors.push(`User ${phone}: ${error.message}`);
+          errors.push(`User ${phone}: ${errorMessage(error)}`);
         }
       }
       console.log(`✅ Processed ${usersMap.size} users`);
@@ -198,7 +199,7 @@ export class MasterSheetSync {
           await DatabaseManager.findOrCreateProduct(productData);
         } catch (error) {
           console.error(`Failed to create product ${productKey}:`, error);
-          errors.push(`Product ${productKey}: ${error.message}`);
+          errors.push(`Product ${productKey}: ${errorMessage(error)}`);
         }
       }
       console.log(`✅ Processed ${productsMap.size} products`);
@@ -271,7 +272,7 @@ export class MasterSheetSync {
           }
         } catch (error) {
           console.error(`Failed to process order ${orderId}:`, error);
-          errors.push(`Order ${orderId}: ${error.message}`);
+          errors.push(`Order ${orderId}: ${errorMessage(error)}`);
           recordsFailed++;
         }
       }
@@ -313,7 +314,7 @@ export class MasterSheetSync {
         recordsAdded,
         recordsUpdated,
         recordsFailed,
-        errorMessage: error.message,
+        errorMessage: errorMessage(error),
       });
 
       throw error;
@@ -323,7 +324,7 @@ export class MasterSheetSync {
   /**
    * Parse a single Master sheet row
    */
-  static parseMasterRow(row, colIndex) {
+  static parseMasterRow(row: string[], colIndex: Record<string, number>) {
     return {
       phone: this.sanitizePhoneNumber(row[colIndex[sheet_master.PHONE]]),
       orderId: row[colIndex[sheet_master.ORDER_ID]]?.trim(),
@@ -359,8 +360,8 @@ export class MasterSheetSync {
    * Handle Master sheet edit (bi-directional sync)
    * Updates database when Master is edited
    */
-  static async handleMasterUpdate(updateData) {
-    const { orderId, rowIndex, columnIndex, newValue, oldValue } = updateData;
+  static async handleMasterUpdate(updateData: { orderId: string; columnIndex: number; newValue: string; oldValue: string }) {
+    const { orderId, columnIndex, newValue, oldValue } = updateData;
 
     try {
       console.log(`🔄 Master edit: Order ${orderId}, Column ${columnIndex}, Value: ${newValue}`);
@@ -403,9 +404,9 @@ export class MasterSheetSync {
   /**
    * Map column index to database field
    */
-  static getFieldFromColumn(columnIndex) {
+  static getFieldFromColumn(columnIndex: number): string | null {
     // Based on sheet_master constant mapping
-    const columnMap = {
+    const columnMap: Record<number, string> = {
       2: 'paymentStatus',   // C - 通知付款狀態
       5: 'remarks',         // F - 备注
       15: 'paidStatus',     // P - 付款情況
@@ -414,13 +415,13 @@ export class MasterSheetSync {
       20: 'address',        // U - 地址
     };
 
-    return columnMap[columnIndex - 1]; // Adjust for 0-indexing
+    return columnMap[columnIndex - 1] || null; // Adjust for 0-indexing
   }
 
   /**
    * Update specific order field in database
    */
-  static async updateOrderField(orderId, field, value) {
+  static async updateOrderField(orderId: string, field: string, value: string) {
     const updates = {
       [field]: value,
     };
@@ -438,7 +439,7 @@ export class MasterSheetSync {
   /**
    * Handle payment completion
    */
-  static async handlePaymentComplete(orderId) {
+  static async handlePaymentComplete(orderId: string) {
     console.log(`💰 Payment completed for order ${orderId}`);
     
     // Add any post-payment logic here:
@@ -452,7 +453,7 @@ export class MasterSheetSync {
   /**
    * Validate Master sheet edit
    */
-  static validateUpdate(updateData) {
+  static validateUpdate(updateData: { orderId: string; columnIndex: number; newValue: string; oldValue: string }) {
     const { orderId, columnIndex, newValue } = updateData;
 
     if (!orderId) {
@@ -465,11 +466,11 @@ export class MasterSheetSync {
     }
 
     // Field-specific validation
-    const validations = {
-      paidStatus: (val) => ['未付款', '已付款', 'cash', 'etransfer', '弃单'].includes(val),
-      packingStatus: (val) => ['未完成', 'packed', '已取消', '未完成那箱'].includes(val),
-      shippingStatus: (val) => ['未發貨', '已發貨', 'Cancelled', 'Canceled'].includes(val),
-      paymentStatus: (val) => ['未通知', '已通知'].includes(val),
+    const validations: Record<string, (val: string) => boolean> = {
+      paidStatus: (val: string) => ['未付款', '已付款', 'cash', 'etransfer', '弃单'].includes(val),
+      packingStatus: (val: string) => ['未完成', 'packed', '已取消', '未完成那箱'].includes(val),
+      shippingStatus: (val: string) => ['未發貨', '已發貨', 'Cancelled', 'Canceled'].includes(val),
+      paymentStatus: (val: string) => ['未通知', '已通知'].includes(val),
     };
 
     if (validations[field] && !validations[field](newValue)) {
@@ -485,7 +486,7 @@ export class MasterSheetSync {
   /**
    * Prevent infinite loop by checking if update came from sync-back
    */
-  static shouldSkipUpdate(updateData, lastSyncTime) {
+  static shouldSkipUpdate(lastSyncTime: number) {
     const now = Date.now();
     const timeSinceSync = now - lastSyncTime;
 
@@ -502,8 +503,8 @@ export class MasterSheetSync {
   /**
    * Fill merged cell values down
    */
-  static fillMergedValuesDown(data, columnIndex) {
-    let lastValue = null;
+  static fillMergedValuesDown(data: string[][], columnIndex: number) {
+    let lastValue: string | null = null;
     return data.map((row) => {
       const newRow = [...row];
       if (newRow[columnIndex]) {
@@ -518,7 +519,7 @@ export class MasterSheetSync {
   /**
    * Sanitize phone number
    */
-  static sanitizePhoneNumber(phone) {
+  static sanitizePhoneNumber(phone: null | string | number | undefined): string {
     if (!phone) return '';
     return String(phone).replace(/[^\d]/g, '').slice(-10);
   }
@@ -526,7 +527,7 @@ export class MasterSheetSync {
   /**
    * Parse date string
    */
-  static parseDate(dateStr) {
+  static parseDate(dateStr: string | null | undefined) {
     if (!dateStr) return new Date();
     const date = new Date(dateStr);
     return isNaN(date.getTime()) ? new Date() : date;

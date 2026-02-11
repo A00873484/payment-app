@@ -19,8 +19,8 @@ interface MasterUpdateResponse {
   expiresIn?: string;
   orderId?: string;
   customerEmail?: string;
-  newValue?: undefined;
-  oldValue?: undefined;
+  newValue?: undefined | string | number | boolean;
+  oldValue?: undefined | string | number | boolean;
 }
 
 async function handler(req: NextApiRequest, res: NextApiResponse<MasterUpdateResponse | ErrorResponse>) {
@@ -42,7 +42,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse<MasterUpdateRes
 
     // Check if this is a sync-back echo (prevent infinite loop)
     const lastSync = lastSyncTimes.get(orderId) || 0;
-    if (MasterSheetSync.shouldSkipUpdate({ orderId, columnIndex }, lastSync)) {
+    if (MasterSheetSync.shouldSkipUpdate(lastSync)) {
       return res.status(200).json({
         success: true,
         skipped: true,
@@ -62,7 +62,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse<MasterUpdateRes
     // Process update
     const result = await MasterSheetSync.handleMasterUpdate({
       orderId,
-      rowIndex,
       columnIndex,
       newValue,
       oldValue,
