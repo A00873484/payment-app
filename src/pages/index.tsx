@@ -14,7 +14,8 @@ export default function AdminOrderSearch() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
-  const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
+  const [selectedCustomerName, setSelectedCustomerName] = useState<string | null>(null);
+  const [selectedCustomerPhone, setSelectedCustomerPhone] = useState<string | null>(null);
   const [hideCompleted, setHideCompleted] = useState<boolean>(false);
 
   // Debounce input (300ms)
@@ -29,7 +30,7 @@ export default function AdminOrderSearch() {
       setResults([]);
       setAllResults([]);
       setExpandedOrders(new Set());
-      setSelectedCustomer(null);
+      clearSelectedCustomer();
       setHideCompleted(false);
       return;
     }
@@ -51,7 +52,7 @@ export default function AdminOrderSearch() {
         const data: OrderSearchResponse = await res.json();
         setAllResults(data.results);
         setResults(data.results);
-        setSelectedCustomer(null); // Reset customer filter on new search
+        clearSelectedCustomer(); // Reset customer filter on new search
         setHideCompleted(false); // Reset shipping filter on new search
       } catch (err) {
         console.error("Search error:", err);
@@ -71,8 +72,8 @@ export default function AdminOrderSearch() {
     let filtered = allResults;
 
     // Filter by customer
-    if (selectedCustomer) {
-      filtered = filtered.filter(order => order.name === selectedCustomer);
+    if (selectedCustomerName) {
+      filtered = filtered.filter(order => order.name === selectedCustomerName && order.phone === selectedCustomerPhone);
     }
 
     // Filter out completed items
@@ -86,7 +87,7 @@ export default function AdminOrderSearch() {
     }
 
     setResults(filtered);
-  }, [selectedCustomer, hideCompleted, allResults]);
+  }, [selectedCustomerName, hideCompleted, allResults]);
 
   const toggleOrder = (orderId: string) => {
     setExpandedOrders(prev => {
@@ -100,12 +101,22 @@ export default function AdminOrderSearch() {
     });
   };
 
-  const handleCustomerClick = (customerName: string | null) => {
-    if (selectedCustomer === customerName) {
-      setSelectedCustomer(null); // Unfilter if clicking the same customer
-    } else {
-      setSelectedCustomer(customerName);
+  const setSelectedCustomer = (order: OrderSearchResult) => {
+    setSelectedCustomerName(order.name);
+    setSelectedCustomerPhone(order.phone); // Set phone filter when customer is selected
+  }
+
+  const clearSelectedCustomer = () => {
+    setSelectedCustomerName(null);
+    setSelectedCustomerPhone(null); // Clear phone filter when customer is cleared
+  }
+
+  const handleCustomerClick = (order: OrderSearchResult | null) => {
+    if(order === null) {
+      clearSelectedCustomer();
+      return;
     }
+    setSelectedCustomer(order);
   };
 
   const toggleShippingFilter = () => {
@@ -177,16 +188,16 @@ export default function AdminOrderSearch() {
                       </th>
                       <th 
                         className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider cursor-pointer transition-colors ${
-                          selectedCustomer 
+                          selectedCustomerName 
                             ? 'bg-blue-100 text-blue-800' 
                             : 'text-gray-600 hover:bg-gray-100'
                         }`}
-                        onClick={() => setSelectedCustomer(null)}
-                        title={selectedCustomer ? "Click to clear customer filter" : "Click customer name to filter"}
+                        onClick={() => clearSelectedCustomer()}
+                        title={selectedCustomerName ? "Click to clear customer filter" : "Click customer name to filter"}
                       >
                         <span className="flex items-center gap-1">
                           Customer 
-                          {selectedCustomer ? (
+                          {selectedCustomerName ? (
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
@@ -240,8 +251,8 @@ export default function AdminOrderSearch() {
                         order={order} 
                         isExpanded={expandedOrders.has(order.orderId)}
                         onToggle={() => toggleOrder(order.orderId)}
-                        onCustomerClick={handleCustomerClick}
-                        isCustomerSelected={selectedCustomer === order.name}
+                        onCustomerClick={() => handleCustomerClick(order)}
+                        isCustomerSelected={selectedCustomerName === order.name}
                       />
                     ))}
                   </tbody>
@@ -252,9 +263,9 @@ export default function AdminOrderSearch() {
               <div className="bg-gray-50 px-4 py-3 border-t border-gray-200">
                 <p className="text-sm text-gray-600">
                   Showing {results.length} of {allResults.length} {allResults.length === 1 ? 'order' : 'orders'}
-                  {selectedCustomer && (
+                  {selectedCustomerName && (
                     <span className="ml-2 text-blue-600">
-                      • Filtered by customer: {selectedCustomer}
+                      • Filtered by customer: {selectedCustomerName}
                     </span>
                   )}
                   {hideCompleted && (
