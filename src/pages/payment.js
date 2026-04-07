@@ -29,7 +29,7 @@ export default function PaymentPage() {
       }
 
       // Fetch order details
-      const response = await fetch(`/api/orders/${orderId}`, {
+      const response = await fetch(`/api/orders/search?orderId=${orderId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

@@ -19,7 +19,7 @@ model User {
   name      String   // 名字
   nameEn    String?  // 收件人名字(英文)
   address   String?  // 地址(自提填123)
-  email     String?  @unique // Email
+  email     String?  // Email
   
   orders    Order[]  // Relation to orders
   

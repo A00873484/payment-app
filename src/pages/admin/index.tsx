@@ -5,16 +5,15 @@ import { useSession, signOut } from "next-auth/react";
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
-import { OrderWithItems } from "@/lib/types/database";
-import { CustomerWithOrdersResult } from "@/lib/types/api";
 import { errorMessage } from "@/lib/utils";
+import OrderSearch from "@/components/OrderSearch";
 
 interface DemoForm {
   customerEmail: string;
   customerName: string;
 }
 
-type TabId = 'demo' | 'customers' | 'features' | 'api';
+type TabId = 'demo' | 'customers' | 'drive' | 'features' | 'api';
 
 interface InputFieldProps {
   label: string;
@@ -36,29 +35,18 @@ export default function AdminDashboard() {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
-  const [customers, setCustomers] = useState<CustomerWithOrdersResult[]>([]);
-  const [loadingCustomers, setLoadingCustomers] = useState<boolean>(true);
 
-  useEffect(() => {
-    const fetchCustomers = async () => {
-      try {
-        const response = await fetch('/api/customers');
-        const data = await response.json();
+  // Import Orders tab state
+  const [drivesyncing, setDriveSyncing] = useState<boolean>(false);
+  const [driveSyncResults, setDriveSyncResults] = useState<{
+    filesProcessed: number;
+    results: { fileName: string; success: boolean; format?: string; recordsAdded?: number; recordsUpdated?: number; recordsFailed?: number; error?: string }[];
+  } | null>(null);
 
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to fetch customers');
-        }
-        setCustomers(data);
-      } catch (err) {
-        console.error('Error fetching customers:', err);
-        setError(err instanceof Error ? err.message : 'Unknown error');
-      } finally {
-        setLoadingCustomers(false);
-      }
-    };
-
-    fetchCustomers();
-  }, []);
+  type UploadResult = { fileName: string; success: boolean; format?: string; recordsAdded?: number; recordsUpdated?: number; recordsFailed?: number; error?: string };
+  const [dragOver, setDragOver] = useState<boolean>(false);
+  const [uploading, setUploading] = useState<boolean>(false);
+  const [uploadResults, setUploadResults] = useState<UploadResult[]>([]);
 
   const handleDemoFormChange = (field: keyof DemoForm, value: string) => {
     setDemoForm(prev => ({ ...prev, [field]: value }));
@@ -123,35 +111,6 @@ export default function AdminDashboard() {
     }
   };
 
-  const sendPortalEmail = async (customer: CustomerWithOrdersResult) => {
-    try {
-      setError('');
-      setSuccess('');
-
-      const response = await fetch('/api/customer/send-portal-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          customerEmail: customer.email,
-          customerName: customer.name
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send email');
-      }
-
-      setSuccess(`Portal link email sent to ${customer.email}!`);
-    } catch (error) {
-      console.error('Error sending email:', error);
-      setError(errorMessage(error));
-    }
-  };
-
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -160,6 +119,38 @@ export default function AdminDashboard() {
       setError('Failed to copy link');
     }
   };
+
+  type SyncResult = { fileName: string; success: boolean; format?: string; recordsAdded?: number; recordsUpdated?: number; recordsFailed?: number; error?: string };
+
+  const ResultsTable = ({ results }: { results: SyncResult[] }) => (
+    <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+      {results.map((r, i) => (
+        <div key={i} className="px-6 py-4">
+          <div className="flex items-start justify-between gap-4">
+            <p className="font-medium text-gray-900 text-sm truncate">{r.fileName}</p>
+            <span className={`shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+              r.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            }`}>
+              {r.success ? 'Success' : 'Failed'}
+            </span>
+          </div>
+          {r.success && (
+            <div className="mt-2 flex flex-wrap gap-4 text-xs text-gray-500">
+              {r.format && <span>Format: <strong className="text-gray-700">{r.format}</strong></span>}
+              <span>+{r.recordsAdded ?? 0} added</span>
+              <span>{r.recordsUpdated ?? 0} updated</span>
+              {(r.recordsFailed ?? 0) > 0 && <span className="text-red-600">{r.recordsFailed} failed</span>}
+            </div>
+          )}
+          {r.error && (
+            <pre className="mt-2 text-xs text-red-700 bg-red-50 rounded p-3 overflow-x-auto whitespace-pre-wrap break-words">
+              {r.error}
+            </pre>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 
   const InputField = ({ label, type = 'text', value, onChange, placeholder, required = false }: InputFieldProps) => (
     <div className="mb-4">
@@ -259,6 +250,7 @@ export default function AdminDashboard() {
                   {[
                     { id: 'demo' as const, label: 'Generate Portal Links', icon: '🔗' },
                     { id: 'customers' as const, label: 'Customers', icon: '👥' },
+                    { id: 'drive' as const, label: 'Import Orders', icon: '📥' },
                     { id: 'features' as const, label: 'Features', icon: '⚡' },
                     { id: 'api' as const, label: 'API Reference', icon: '💻' }
                   ].map((tab) => (
@@ -407,82 +399,198 @@ export default function AdminDashboard() {
                   </div>
                 )}
 
-                {/* Customers Tab */}
+                {/* Customers Tab - Now using OrderSearch component */}
                 {activeTab === 'customers' && (
                   <div className="space-y-6">
                     <div>
-                      <h2 className="text-2xl font-bold text-gray-900 mb-4">👥 Customers</h2>
+                      <h2 className="text-2xl font-bold text-gray-900 mb-4">👥 Order Management</h2>
                       <p className="text-gray-600 mb-6">
-                        Test customers with unpaid orders. Send them a portal link to test the multi-order payment flow.
+                        Search for orders, send payment emails, and manage customer orders.
                       </p>
                     </div>
 
-                    {error && (
-                      <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded">
-                        <p className="text-red-700 text-sm">{error}</p>
-                      </div>
-                    )}
-
-                    {success && (
-                      <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded">
-                        <p className="text-green-700 text-sm">{success}</p>
-                      </div>
-                    )}
-
-                    <div className="grid gap-6">
-                      { loadingCustomers ? (
-                        <p className="text-gray-500">Loading customers...</p>
-                      ) : customers.length === 0 ? (
-                        <p className="text-gray-500">No customers found.</p>
-                      ) : (
-                        customers.map((customer, index) => (
-                        <div key={index} className="bg-white border-2 border-gray-200 rounded-xl p-6 hover:shadow-lg transition-shadow">
-                          <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-4">
-                            <div>
-                              <h3 className="text-xl font-semibold text-gray-900">{customer.name}</h3>
-                              <p className="text-gray-600">{customer.email}</p>
-                            </div>
-                            <div className="text-left md:text-right">
-                              <div className="text-2xl font-bold text-red-600">${customer.totalOrderAmount?.toFixed(2)}</div>
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                {customer.orders.length} unpaid
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="mb-4 bg-gray-50 rounded p-3">
-                            <h4 className="font-medium text-gray-700 mb-2 text-sm">Unpaid Orders:</h4>
-                            <div className="flex flex-wrap gap-2">
-                              {customer.orders.map((order) => (
-                                <span key={order.id} className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono">
-                                  {order.id}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div className="flex flex-col sm:flex-row gap-3">
-                            <button
-                              onClick={() => sendPortalEmail(customer)}
-                              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                            >
-                              📧 Send Portal Email
-                            </button>
-                            <button
-                              onClick={() => {
-                                setDemoForm({ customerEmail: customer.email ? customer.email : "", customerName: customer.name });
-                                setActiveTab('demo');
-                              }}
-                              className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                            >
-                              🔗 Generate Link
-                            </button>
-                          </div>
-                        </div>
-                      )))}
-                    </div>
+                    <OrderSearch 
+                      isAdminMode={true}
+                      features={{
+                        phoneSearch: true,
+                        emailActions: true,
+                        generatePaymentLink: true,
+                        exportData: true
+                      }}
+                      className="p-0"
+                    />
                   </div>
                 )}
+
+                {/* Import Orders Tab */}
+                {activeTab === 'drive' && (() => {
+                  const processFile = async (file: File) => {
+                    return new Promise<{ fileName: string; success: boolean; format?: string; recordsAdded?: number; recordsUpdated?: number; recordsFailed?: number; error?: string }>((resolve) => {
+                      const reader = new FileReader();
+                      reader.onload = async (e) => {
+                        try {
+                          const base64 = (e.target?.result as string).split(',')[1];
+                          const res = await fetch('/api/sync/upload-sheet', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ filename: file.name, content: base64 }),
+                          });
+                          const data = await res.json();
+                          if (!res.ok) throw new Error(data.error || 'Upload failed');
+                          resolve({ ...data, fileName: file.name });
+                        } catch (err) {
+                          resolve({ fileName: file.name, success: false, error: err instanceof Error ? err.message : 'Unknown error' });
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    });
+                  };
+
+                  const handleFiles = async (files: FileList | null) => {
+                    if (!files || files.length === 0) return;
+                    const valid = Array.from(files).filter(f => f.name.endsWith('.xlsx') || f.name.endsWith('.xls'));
+                    if (valid.length === 0) { setError('Only .xlsx and .xls files are supported'); return; }
+                    setUploading(true);
+                    setUploadResults([]);
+                    setError('');
+                    setSuccess('');
+                    const results = await Promise.all(valid.map(processFile));
+                    setUploadResults(results);
+                    const failed = results.filter(r => !r.success).length;
+                    setSuccess(failed === 0
+                      ? `Processed ${results.length} file(s) successfully.`
+                      : `Processed ${results.length} file(s): ${results.length - failed} ok, ${failed} failed.`
+                    );
+                    setUploading(false);
+                  };
+
+                  return (
+                    <div className="space-y-8">
+                      <div>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">📥 Import Orders</h2>
+                        <p className="text-gray-600">
+                          Import orders from Excel files. Drag and drop files below, or process files already in the
+                          Google Drive Unprocessed folder.
+                        </p>
+                      </div>
+
+                      {/* ── Drag & Drop Upload ── */}
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-800 mb-3">Upload File</h3>
+                        <div
+                          onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                          onDragLeave={() => setDragOver(false)}
+                          onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
+                          className={`relative border-2 border-dashed rounded-xl p-12 text-center transition-all ${
+                            dragOver
+                              ? 'border-blue-500 bg-blue-50'
+                              : uploading
+                              ? 'border-gray-300 bg-gray-50'
+                              : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-blue-50 cursor-pointer'
+                          }`}
+                          onClick={() => { if (!uploading) document.getElementById('file-upload-input')?.click(); }}
+                        >
+                          <input
+                            id="file-upload-input"
+                            type="file"
+                            accept=".xlsx,.xls"
+                            multiple
+                            className="hidden"
+                            onChange={e => handleFiles(e.target.files)}
+                          />
+                          {uploading ? (
+                            <div className="flex flex-col items-center gap-3">
+                              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500" />
+                              <p className="text-gray-600 font-medium">Processing file(s)…</p>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-3 pointer-events-none">
+                              <div className={`text-5xl transition-transform ${dragOver ? 'scale-125' : ''}`}>
+                                {dragOver ? '📂' : '📄'}
+                              </div>
+                              <p className="text-gray-700 font-semibold text-lg">
+                                {dragOver ? 'Drop to import' : 'Drag & drop Excel files here'}
+                              </p>
+                              <p className="text-gray-500 text-sm">or click to browse — .xlsx and .xls supported</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {error && (
+                          <div className="mt-3 bg-red-50 border-l-4 border-red-400 p-4 rounded">
+                            <p className="text-red-700 text-sm">{error}</p>
+                          </div>
+                        )}
+                        {success && (
+                          <div className="mt-3 bg-green-50 border-l-4 border-green-400 p-4 rounded">
+                            <p className="text-green-700 text-sm">{success}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* ── Upload results ── */}
+                      {uploadResults.length > 0 && (
+                        <ResultsTable results={uploadResults} />
+                      )}
+
+                      {/* ── Drive Folder Sync ── */}
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-800 mb-1">Google Drive Folder</h3>
+                        <p className="text-sm text-gray-500 mb-4">
+                          Process all files in <strong>Ovosky_Orders/Unprocessed</strong>.
+                          Successfully processed files are moved to <strong>Processed</strong>. Errors trigger an admin email.
+                        </p>
+                        <button
+                          onClick={async () => {
+                            setDriveSyncing(true);
+                            setDriveSyncResults(null);
+                            setError('');
+                            setSuccess('');
+                            try {
+                              const res = await fetch('/api/sync/drive-folders', { method: 'POST' });
+                              const data = await res.json();
+                              if (!res.ok && res.status !== 207) throw new Error(data.error || 'Sync failed');
+                              setDriveSyncResults(data);
+                              const failed = data.results.filter((r: { success: boolean }) => !r.success).length;
+                              setSuccess(failed === 0
+                                ? `Processed ${data.filesProcessed} file(s) successfully.`
+                                : `Processed ${data.filesProcessed} file(s): ${data.filesProcessed - failed} ok, ${failed} failed.`
+                              );
+                            } catch (err) {
+                              setError(err instanceof Error ? err.message : 'Unknown error');
+                            } finally {
+                              setDriveSyncing(false);
+                            }
+                          }}
+                          disabled={drivesyncing}
+                          className={`px-6 py-3 rounded-lg font-semibold text-white transition-all ${
+                            drivesyncing
+                              ? 'bg-gray-400 cursor-not-allowed'
+                              : 'bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-xl'
+                          }`}
+                        >
+                          {drivesyncing ? (
+                            <span className="flex items-center gap-2">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                              Processing…
+                            </span>
+                          ) : '📂 Process Unprocessed Folder'}
+                        </button>
+                      </div>
+
+                      {driveSyncResults && (
+                        driveSyncResults.filesProcessed === 0 ? (
+                          <div className="text-center py-8 text-gray-500">
+                            <div className="text-4xl mb-2">📭</div>
+                            <p>No files found in the Unprocessed folder.</p>
+                          </div>
+                        ) : (
+                          <ResultsTable results={driveSyncResults.results} />
+                        )
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Features Tab */}
                 {activeTab === 'features' && (

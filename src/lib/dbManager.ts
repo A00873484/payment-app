@@ -62,7 +62,7 @@ export class DatabaseManager {
 
   static async getUserByEmail(email: string): Promise<User | null> {
     try {
-      return await prisma.user.findUnique({
+      return await prisma.user.findFirst({
         where: { email },
         include: {
           orders: {
@@ -205,7 +205,22 @@ export class DatabaseManager {
         }
       });
 
-      if (existing) return existing;
+      if (existing) {
+        const updates: { brand?: string; category?: string } = {};
+        if (!existing.brand && productData.brand) updates.brand = productData.brand;
+        if (!existing.category && productData.category) updates.category = productData.category;
+        if (Object.keys(updates).length > 0) {
+          const updated = await prisma.product.update({ where: { id: existing.id }, data: updates });
+          if (updates.brand) {
+            await prisma.orderItem.updateMany({
+              where: { productId: existing.id, brand: null },
+              data: { brand: updates.brand },
+            });
+          }
+          return updated;
+        }
+        return existing;
+      }
 
       // Create new product
       return await this.createProduct(productData);
@@ -291,13 +306,13 @@ export class DatabaseManager {
       return await prisma.order.findUnique({
         where: { orderId },
         include: {
+          user: true,
           orderItems: {
             include: {
               product: true
             }
-          },
-          user: true
-        }
+          }
+        },
       });
     } catch (error) {
       console.error('Failed to get order:', error);

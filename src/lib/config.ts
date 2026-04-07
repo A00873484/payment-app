@@ -17,13 +17,18 @@ interface Config {
   email: {
     apiKey?: string;
     endpoint?: string;
+    adminEmail?: string;
+  };
+  drive: {
+    unprocessedFolderId?: string;
+    processedFolderId?: string;
   };
 }
 
 export const config: Config = {
   googleSheets: {
     apiKey: process.env.GOOGLE_SHEETS_API_KEY,
-    spreadsheetId: process.env.SPREADSHEET_ID,
+    spreadsheetId: process.env.SPREADSHEET_ID_TEST, // Production use SPREADSHEET_ID
   },
   alphaPay: {
     publicKey: process.env.NEXT_PUBLIC_ALPHAPAY_PUBLIC_KEY,
@@ -38,5 +43,10 @@ export const config: Config = {
   email: {
     apiKey: process.env.EMAIL_SERVICE_API_KEY,
     endpoint: process.env.EMAIL_SERVICE_ENDPOINT,
+    adminEmail: process.env.ADMIN_EMAIL,
+  },
+  drive: {
+    unprocessedFolderId: process.env.DRIVE_FOLDER_UNPROCESSED_ID,
+    processedFolderId: process.env.DRIVE_FOLDER_PROCESSED_ID,
   },
 };

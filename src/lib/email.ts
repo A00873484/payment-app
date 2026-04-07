@@ -53,6 +53,34 @@ export class EmailService {
     }
   }
 
+  static async sendAdminErrorEmail(
+    adminEmail: string,
+    fileName: string,
+    error: string
+  ): Promise<{ success: boolean; messageId: string }> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #dc2626; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+          <h2 style="margin: 0;">Drive Folder Sync Error</h2>
+        </div>
+        <div style="background: #fff; border: 1px solid #e5e7eb; padding: 24px; border-radius: 0 0 8px 8px;">
+          <p><strong>File:</strong> ${fileName}</p>
+          <div style="background: #fef2f2; border-left: 4px solid #dc2626; padding: 16px; border-radius: 4px; margin-top: 12px;">
+            <pre style="margin: 0; white-space: pre-wrap; font-size: 13px; color: #7f1d1d;">${error}</pre>
+          </div>
+          <p style="color: #6b7280; font-size: 13px; margin-top: 20px;">
+            The file has been left in the Unprocessed folder. Fix the issue and re-trigger the sync.
+          </p>
+        </div>
+      </div>
+    `;
+    return this.sendEmail({
+      to: adminEmail,
+      subject: `Sync Error: ${fileName}`,
+      html,
+    });
+  }
+
   static generateAlternativePaymentHTML(customerName: string, orders: OrderWithItems[], paymentMethod: string, totalAmount: number): string {
     const ordersHTML = orders.map(order => {
       const itemsHTML = order.orderItems.map(item => `

@@ -102,11 +102,12 @@ export class MasterSheetSync {
               });
             }
 
-            // Update user address/email if newer data available
-            if (parsedData.address || parsedData.email) {
+            // Update user address/email/name if newer data available
+            if (parsedData.address || parsedData.email || parsedData.name) {
               const user = usersMap.get(phone);
               if (parsedData.address) user.address = parsedData.address;
               if (parsedData.email) user.email = parsedData.email;
+              if (parsedData.name) user.name = parsedData.name;
             }
 
             // Collect order info (only if new order)
@@ -339,7 +340,7 @@ export class MasterSheetSync {
       remarks: row[colIndex[sheet_master.REMARKS]]?.trim() || null,
       orderTime: this.parseDate(row[colIndex[sheet_master.ORDER_TIME]]?.trim()),
       
-      category: row[colIndex[sheet_master.CATEGORY]]?.trim() || '',
+      category: this.sanitizeSheetValue(row[colIndex[sheet_master.CATEGORY]]) || '',
       productName: row[colIndex[sheet_master.PRODUCT_NAME]]?.trim() || '',
       specification: row[colIndex[sheet_master.SPECIFICATIONS]]?.trim() || '',
       quantity: parseInt(row[colIndex[sheet_master.QUANTITY]], 10) || 0,
@@ -514,6 +515,15 @@ export class MasterSheetSync {
       }
       return newRow;
     });
+  }
+
+  /**
+   * Sanitize a sheet cell value — returns null for formula errors (e.g. #N/A, #REF!)
+   */
+  static sanitizeSheetValue(value: string | null | undefined): string | null {
+    if (!value) return null;
+    const trimmed = value.trim();
+    return trimmed.startsWith('#') ? null : trimmed;
   }
 
   /**

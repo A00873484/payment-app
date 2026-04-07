@@ -9,6 +9,7 @@ export interface CustomerWithOrdersResult extends User {
 export interface OrderSearchResult extends Order {
   name: User['wechatId'] | '';
   orderId: string;
+  dbOrderId: string;
   orderItems: OrderItem[];
   endPhone: string;
 }
