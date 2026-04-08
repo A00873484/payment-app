@@ -2,6 +2,7 @@
 import { google } from 'googleapis';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const xlsx = require('xlsx') as typeof import('xlsx');
+import type { WorkSheet } from 'xlsx';
 import { RawSheetsSync } from './rawSheetsSync';
 import { EmailService } from './email';
 import { sheet_rawqjl, sheet_rawpt } from './const';
@@ -183,7 +184,7 @@ export class DriveFolderSync {
   /**
    * Convert a single worksheet to a normalised 2-D string array.
    */
-  private static sheetToRows(sheet: xlsx.WorkSheet): string[][] {
+  private static sheetToRows(sheet: WorkSheet): string[][] {
     const rows: unknown[][] = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' });
     return rows.map(row => (row as unknown[]).map(cell =>
       cell === null || cell === undefined ? '' : String(cell)

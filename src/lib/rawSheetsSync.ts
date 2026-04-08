@@ -40,10 +40,10 @@ export class RawSheetsSync {
       syncType: 'RAW_SHEET_IMPORT',
     });
 
-    let recordsAdded = 0;
-    let recordsUpdated = 0;
-    let recordsFailed = 0;
-    const errors = [];
+    const recordsAdded = 0;
+    const recordsUpdated = 0;
+    const recordsFailed = 0;
+    const errors:string[] = [];
 
     try {
       console.log(`📊 Syncing ${sheetName} rows ${startRow}-${endRow}...`);

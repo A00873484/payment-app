@@ -2,6 +2,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { withAPIAuth } from '@/lib/middleware/apiAuth';
 import { DatabaseManager } from '@/lib/dbManager';
+import { Order } from '@prisma/client';
 
 const VALID_FIELDS = ['paidStatus', 'packingStatus', 'shippingStatus'] as const;
 type StatusField = typeof VALID_FIELDS[number];
@@ -42,7 +43,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       }
     }
 
-    await DatabaseManager.updateOrder(orderId, updates as any);
+    await DatabaseManager.updateOrder(orderId, updates as Partial<Order>);
 
     return res.status(200).json({ success: true, updates });
   } catch (err) {

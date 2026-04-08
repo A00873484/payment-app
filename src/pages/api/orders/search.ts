@@ -40,7 +40,7 @@ function toSearchResult(order: Awaited<ReturnType<typeof DatabaseManager.getOrde
     endPhone: order.phone.slice(-2),
     orderItems: (order.orderItems ?? []).map(item => ({
       ...item,
-      brand: item.brand ?? item.product?.brand ?? null,
+      brand: item.brand ?? null,
     })),
   } as OrderSearchResult;
 }
